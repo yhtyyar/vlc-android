@@ -1,0 +1,43 @@
+name: Kaspresso tests (compile check)
+
+on:
+  push:
+    branches: [ test/kaspresso-framework ]
+  pull_request:
+    branches: [ test/kaspresso-framework ]
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Fetch libvlcjni (JNI glue sources only, pinned; no native build needed for this check)
+        run: |
+          git clone --single-branch --branch libvlcjni-3.x https://code.videolan.org/videolan/libvlcjni.git
+          git -C libvlcjni reset --hard 08cbcce16a2f2cf9ca64f253cc8688d8b55a97da
+
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      # Compiles org.videolan.vlc.kaspresso.* alongside the existing Espresso suite.
+      # Running the tests against a real/virtual device is a follow-up: it needs a
+      # KVM-accelerated emulator, which is a separate, more expensive effort than this
+      # foundational check warrants.
+      - name: Compile the Kaspresso androidTest sources
+        run: gradle :application:app:compileDebugAndroidTestKotlin --console=plain

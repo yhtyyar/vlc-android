@@ -194,4 +194,10 @@ dependencies {
     androidTestImplementation "androidx.test:rules:$rootProject.ext.testCore"
     androidTestImplementation 'com.jraska:falcon:2.2.0'
     androidTestImplementation 'tools.fastlane:screengrab:2.1.0'
+
+    // Kaspresso UI test foundation (org.videolan.vlc.kaspresso), additive to the Espresso suite above
+    androidTestImplementation 'com.kaspersky.android-components:kaspresso:1.6.1'
+    androidTestImplementation 'com.kaspersky.android-components:kaspresso-allure-support:1.6.1'
+    androidTestImplementation 'io.qameta.allure:allure-kotlin-android:2.4.0'
+    androidTestImplementation 'io.qameta.allure:allure-kotlin-commons:2.4.0'
 }
