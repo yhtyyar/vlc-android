@@ -155,7 +155,55 @@ follow-up rather than swapped for an unverified API.
 `origin` for this repository is the contributor's own GitHub fork
 (`yhtyyar/vlc-android`); `upstream` (`videolan/vlc-android`) uses GitLab CI
 and has no `.github/` directory. A GitHub Actions workflow is meaningful on
-the fork and is scoped to compiling the new androidTest sources — running
-the tests against a real/virtual device is a follow-up, since provisioning a
-KVM-accelerated emulator in CI is a separate, more expensive effort than a
-first foundational change warrants.
+the fork. It now has two jobs: `compile` (unchanged from the first pass) and
+`instrumented-tests`, which runs `org.videolan.vlc.kaspresso.*` on a
+KVM-accelerated emulator via `reactivecircus/android-emulator-runner` and
+uploads Allure results as an artifact. The on-device Allure results path used
+in the "pull" step is the documented convention, not something verified
+end-to-end (no emulator was available while authoring it) — see the inline
+comment in `kaspresso-tests.yml`.
+
+## 6. Second pass: expanded coverage
+
+Added `screens/AudioPlayerScreen.kt`, `screens/FileBrowserScreen.kt`,
+`screens/SettingsScreen.kt`, `matchers/VlcMatchers.kt` (`isProgressChanging`,
+polled via `flakySafely`), and `tests/VideoPlaybackTest.kt` /
+`tests/AudioPlaybackTest.kt` / `tests/TvNavigationTest.kt`. Two more real
+constraints surfaced and are handled explicitly rather than papered over:
+
+- **No media test fixtures.** Confirmed there is no adb-push script,
+  androidTest `assets/` folder, or synthetic-`MediaWrapper`-insertion helper
+  anywhere in this repo that provisions real playable media (the only
+  synthetic `MediaWrapper` usage, in `PhoneScreenhotsInstrumentedTest`, is
+  never inserted into the real Medialibrary and isn't playable). Existing
+  Espresso tests that touch the medialibrary (e.g. `PlaylistFragmentUITest`)
+  depend on whatever the device/emulator already has indexed. `VideoPlaybackTest`
+  and `AudioPlaybackTest` check for existing media in `@Before` and skip via
+  `org.junit.Assume.assumeTrue` on an empty library rather than fail.
+- **`MainTvActivity` wasn't on the androidTest classpath.** Confirmed
+  `application/app/build.gradle` had `implementation`/`testImplementation
+  project(':application:television')` but no `androidTestImplementation` —
+  added it. `TvNavigationTest` sends D-Pad/remote key events at
+  `org.videolan.television.ui.MainTvActivity`'s Leanback `BrowseSupportFragment`
+  and asserts the activity survives (`Lifecycle.State.RESUMED`); Leanback
+  manages its own internal, unexposed focus state, so a more precise
+  "row N gained focus" assertion is a follow-up needing Leanback-internal API
+  research beyond this pass.
+
+Real IDs added, confirmed by reading the actual layouts (not invented):
+`audio_player.xml` (play_pause/header_play_pause/header_large_play_pause,
+timeline, title/artist — no album field exists in this layout),
+`directory_browser.xml` (network_list, ariane breadcrumb — no dedicated "up"
+button), `video_grid.xml` (video_grid, empty_loading),
+`audio_recyclerview.xml` (audio_list, shared across the audio tab's
+Artists/Albums/Songs sub-tabs), and `player_hud.xml`'s
+`player_overlay_rewind`/`player_overlay_forward` jump buttons. Settings
+row-level matching reuses the existing `PreferenceMatchers`/`onPreferenceRow`
+helpers (`org.videolan.vlc.PreferenceMatcher.kt`,
+`org.videolan.vlc.UtilAdapterMatcher.kt`) rather than reimplementing them.
+
+`compileDebugAndroidTestKotlin` was re-run after these additions and is
+clean (two real bugs were caught and fixed in the process: `flakySafely`
+isn't reachable from a plain private method, only from inside a `run`/`step`
+block or a `BaseTestContext` extension function; and `ActivityScenario` has
+no nested `State` type — the real type is `androidx.lifecycle.Lifecycle.State`).

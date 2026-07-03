@@ -2,6 +2,7 @@ package org.videolan.vlc.kaspresso.screens
 
 import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.common.views.KView
+import io.github.kakaocup.kakao.recycler.KRecyclerView
 import org.videolan.vlc.R
 
 /**
@@ -18,4 +19,17 @@ object MainScreen : KScreen<MainScreen>() {
     val moreTab = KView { withId(R.id.nav_more) }
 
     val fragmentPlaceholder = KView { withId(R.id.fragment_placeholder) }
+    val fab = KView { withId(R.id.fab) }
+
+    // Present on the toolbar of every top-level tab (org.videolan.vlc.gui.browser.MediaBrowserFragment).
+    val searchButton = KView { withId(R.id.ml_menu_filter) }
+
+    // org.videolan.vlc.gui.video.VideoGridFragment (res/layout/video_grid.xml) — only meaningful
+    // while the video tab is the active fragment.
+    val videoGridList = KRecyclerView(builder = { withId(R.id.video_grid) }, itemTypeBuilder = {})
+    val videoGridEmptyState = KView { withId(R.id.empty_loading) }
+
+    // res/layout/audio_recyclerview.xml — shared by the Artists/Albums/Songs sub-tabs under
+    // the audio tab (org.videolan.vlc.gui.audio.AudioBrowserFragment); only meaningful there.
+    val audioList = KRecyclerView(builder = { withId(R.id.audio_list) }, itemTypeBuilder = {})
 }

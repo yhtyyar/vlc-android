@@ -170,6 +170,7 @@ dependencies {
     implementation project(':application:remote-access-server')
     testImplementation project(':application:television')
     testImplementation project(':application:remote-access-server')
+    androidTestImplementation project(':application:television')
 
     androidTestImplementation "androidx.test.espresso:espresso-contrib:$rootProject.espressoVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$rootProject.espressoVersion"

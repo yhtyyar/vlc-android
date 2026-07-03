@@ -24,12 +24,17 @@ class SmokeTest : KaspressoUITest() {
     @Severity(SeverityLevel.BLOCKER)
     fun launchingTheAppShowsTheBottomNavigation() = run {
         step("Bottom navigation tabs are visible") {
-            MainScreen {
-                videoTab.isVisible()
-                audioTab.isVisible()
-                directoriesTab.isVisible()
-                playlistsTab.isVisible()
+            // The medialibrary scan started in KaspressoUITest.startMedialibraryForTest() races
+            // with the initial layout, so give the fragment placeholder time to settle.
+            flakySafely {
+                MainScreen {
+                    videoTab.isVisible()
+                    audioTab.isVisible()
+                    directoriesTab.isVisible()
+                    playlistsTab.isVisible()
+                }
             }
+            device.screenshots.take("main_screen_launched")
         }
     }
 
@@ -40,14 +45,15 @@ class SmokeTest : KaspressoUITest() {
         step("Switch to the audio tab") {
             MainScreen {
                 audioTab.click()
-                audioTab.isSelected()
+                flakySafely { audioTab.isSelected() }
             }
+            device.screenshots.take("audio_tab_selected")
         }
 
         step("Switch back to the video tab") {
             MainScreen {
                 videoTab.click()
-                videoTab.isSelected()
+                flakySafely { videoTab.isSelected() }
             }
         }
     }
@@ -59,9 +65,12 @@ class SmokeTest : KaspressoUITest() {
         step("Switch to the directories tab") {
             MainScreen {
                 directoriesTab.click()
-                directoriesTab.isSelected()
-                fragmentPlaceholder.isVisible()
+                flakySafely {
+                    directoriesTab.isSelected()
+                    fragmentPlaceholder.isVisible()
+                }
             }
+            device.screenshots.take("directories_tab_selected")
         }
     }
 }
