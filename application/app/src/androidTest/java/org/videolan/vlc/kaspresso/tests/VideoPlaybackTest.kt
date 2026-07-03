@@ -29,6 +29,12 @@ import org.videolan.vlc.kaspresso.screens.PlayerScreen
  * Requires the medialibrary to have already indexed at least one real video file. This repo has
  * no mechanism to provision that on a fresh emulator (see ANALYSIS.md, "Media test fixtures"), so
  * these tests skip themselves via [assumeTrue] rather than fail on an empty library.
+ *
+ * Confirmed for real on a Pixel_7a/API 35 emulator: Kaspresso's withAllureSupport() records a
+ * screen video per test under /storage/emulated/0/Documents/video/ by default, and VLC's own
+ * medialibrary scanner indexes those .mp4 files as playable content — so a naive "is there any
+ * video" check sees Kaspresso's own artifacts as real media. [KASPRESSO_ARTIFACT_PATH_MARKER]
+ * filters those out.
  */
 @Epic("VLC Android")
 @Feature("Video playback")
@@ -39,10 +45,10 @@ class VideoPlaybackTest : KaspressoUITest() {
 
     @Before
     fun requireAtLeastOneVideo() {
-        val hasVideos = Medialibrary.getInstance()
-                .getPagedVideos(Medialibrary.SORT_DEFAULT, false, true, false, 1, 0)
-                .isNotEmpty()
-        assumeTrue("No video indexed by the medialibrary on this device/emulator — skipping", hasVideos)
+        val hasRealVideos = Medialibrary.getInstance()
+                .getPagedVideos(Medialibrary.SORT_DEFAULT, false, true, false, 50, 0)
+                .any { it.uri?.path?.contains(KASPRESSO_ARTIFACT_PATH_MARKER) != true }
+        assumeTrue("No real video indexed by the medialibrary on this device/emulator — skipping", hasRealVideos)
     }
 
     // An extension on BaseTestContext (not a plain method) so flakySafely resolves via the
@@ -119,5 +125,9 @@ class VideoPlaybackTest : KaspressoUITest() {
                 onView(withId(R.id.player_overlay_seekbar)).check(matches(progressChanged))
             }
         }
+    }
+
+    private companion object {
+        const val KASPRESSO_ARTIFACT_PATH_MARKER = "/Documents/"
     }
 }

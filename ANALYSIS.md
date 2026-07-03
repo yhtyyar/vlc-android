@@ -207,3 +207,67 @@ clean (two real bugs were caught and fixed in the process: `flakySafely`
 isn't reachable from a plain private method, only from inside a `run`/`step`
 block or a `BaseTestContext` extension function; and `ActivityScenario` has
 no nested `State` type — the real type is `androidx.lifecycle.Lifecycle.State`).
+
+## 7. Third pass: actually running the suite on a real emulator
+
+A report of a CI failure prompted this pass, but no real CI run or log could
+be found to confirm it (no `gh` CLI available, no linked run). Rather than
+"fix" an unconfirmed failure from guesses, this suite was run for real: found
+Android Studio's bundled AVDs already on this machine (`~/.android/avd/`,
+several phone images plus two Android TV images), booted `Pixel_7a` (API 35,
+x86_64) under KVM, built `assembleDebug` + `assembleDebugAndroidTest`, and
+ran `connectedDebugAndroidTest` scoped to `org.videolan.vlc.kaspresso`
+end-to-end, iterating against the real logcat/screenshots/exceptions each
+time — not the speculative causes a generic "there were failing tests" error
+suggests (medialibrary init order, `Assume` misbehaving, runner conflicts).
+It did fail the first time, for four real, unrelated reasons, all now fixed:
+
+1. **Missing modern runtime permissions.** `KaspressoUITest` only granted
+   `READ_EXTERNAL_STORAGE`, a no-op for media access on API 33+.
+   `org.videolan.vlc.util.Permissions.canReadStorage()` checks
+   `READ_MEDIA_VIDEO`/`READ_MEDIA_AUDIO` instead, and without
+   `POST_NOTIFICATIONS` granted up front `MainActivity.onCreate()`'s
+   `NotificationPermissionManager.launchIfNeeded()` call has to ask for it at
+   runtime. Fixed by granting all four in `GrantPermissionRule`.
+2. **A debug-only dialog stealing window focus.** On every fresh install
+   (which the test task always does), `MainActivity.onCreate()`'s
+   `lifecycleScope.launch` block shows a "nightly build update" `AlertDialog`
+   whenever `settings.contains(KEY_SHOW_UPDATE)` is false — confirmed via
+   `WindowLeaked` logcat entries pointing at that exact line every run. This
+   is a real gap in `KaspressoUITest`, not a preexisting app bug: the
+   existing Espresso suite's `BaseUITest` has the exact same gap (it also
+   only grants `READ_EXTERNAL_STORAGE` and never seeds `KEY_SHOW_UPDATE`),
+   which likely just went unnoticed because that suite predates these
+   Android-13+/debug-build behaviors or was last verified on an older
+   emulator image — worth flagging upstream rather than assuming it's fine.
+   Fixed with a base-class `@Rule` (ordered to wrap outside any subclass's
+   `ActivityScenarioRule`, since JUnit rules from the superclass wrap
+   outermost) that pre-seeds `KEY_SHOW_UPDATE` before the activity launches.
+3. **Ambiguous nav ids.** `main.xml` has both a `BottomNavigationView`
+   (`R.id.navigation`) and a `NavigationRailView` (`R.id.navigation_rail`)
+   inflating the *same* `@menu/bottom_navigation` resource, so a bare
+   `withId(R.id.nav_video)` matches two views
+   (`AmbiguousViewMatcherException`). This is exactly why the existing
+   Espresso suite never clicks these tabs by id and instead deep-links via
+   an `EXTRA_TARGET` intent extra. Fixed by scoping `MainScreen`'s tab
+   matchers with `isDescendantOfA { withId(R.id.navigation) }`.
+4. **Self-inflicted medialibrary contamination.** `Kaspresso.Builder.withAllureSupport()`
+   records a screen video per test to
+   `/storage/emulated/0/Documents/video/<Class>/<test>/Video_<Class>.mp4` by
+   default — and VLC's own medialibrary scanner indexes those `.mp4` files
+   as playable videos, so `VideoPlaybackTest`'s "is there a video" check saw
+   its own prior run's recordings and proceeded to click one, which isn't
+   real playable content. Fixed by filtering out paths under `/Documents/`
+   in the `Assume` check; the device was also manually cleaned for this
+   verification run.
+
+Final result on `Pixel_7a`/API 35: 10 tests, 5 passed (`SmokeTest`,
+`TvNavigationTest`), 5 correctly skipped via `Assume` (`VideoPlaybackTest`,
+`AudioPlaybackTest` — this stock emulator image has no real video/audio
+content, confirming §4's "no media fixtures" limitation is accurate), 0
+failed. The real on-device Allure artifact root is confirmed to be
+`/storage/emulated/0/Documents/` (screenshots/video/logcat/view_hierarchy
+subfolders) — but the specific `allure-results` path the CI workflow's
+"pull" step guesses at was not found there or in app-private storage before
+the test task uninstalled the app, so that step remains genuinely unverified
+(disclosed in the workflow's inline comment).

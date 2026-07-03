@@ -12,11 +12,18 @@ object MainScreen : KScreen<MainScreen>() {
     override val layoutId: Int? = null
     override val viewClass: Class<*>? = null
 
-    val videoTab = KView { withId(R.id.nav_video) }
-    val audioTab = KView { withId(R.id.nav_audio) }
-    val directoriesTab = KView { withId(R.id.nav_directories) }
-    val playlistsTab = KView { withId(R.id.nav_playlists) }
-    val moreTab = KView { withId(R.id.nav_more) }
+    // main.xml has both a BottomNavigationView (R.id.navigation, phone width) and a
+    // NavigationRailView (R.id.navigation_rail, wide layout) sharing the same
+    // @menu/bottom_navigation resource, so both always inflate menu items with these same ids —
+    // confirmed for real on a Pixel_7a/API 35 emulator (AmbiguousViewMatcherException on a bare
+    // withId). Scoping to the BottomNavigationView disambiguates; it's also why the existing
+    // Espresso suite never clicks these tabs by id directly (see PlaylistFragmentUITest, which
+    // deep-links via an EXTRA_TARGET intent extra instead).
+    val videoTab = KView { withId(R.id.nav_video); isDescendantOfA { withId(R.id.navigation) } }
+    val audioTab = KView { withId(R.id.nav_audio); isDescendantOfA { withId(R.id.navigation) } }
+    val directoriesTab = KView { withId(R.id.nav_directories); isDescendantOfA { withId(R.id.navigation) } }
+    val playlistsTab = KView { withId(R.id.nav_playlists); isDescendantOfA { withId(R.id.navigation) } }
+    val moreTab = KView { withId(R.id.nav_more); isDescendantOfA { withId(R.id.navigation) } }
 
     val fragmentPlaceholder = KView { withId(R.id.fragment_placeholder) }
     val fab = KView { withId(R.id.fab) }
