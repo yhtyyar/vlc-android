@@ -1,6 +1,7 @@
 package org.videolan.vlc.kaspresso
 
 import android.content.Context
+import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.runner.AndroidJUnit4
@@ -23,18 +24,26 @@ import org.videolan.vlc.util.TestCoroutineContextProvider
 @RunWith(AndroidJUnit4::class)
 abstract class KaspressoUITest : TestCase(KaspressoConfig.builder) {
 
-    // GrantPermissionRule no-ops any permission not applicable to the current SDK level, so it's
-    // safe to request the modern (API 33+) media/notification permissions alongside the legacy
-    // one. org.videolan.vlc.util.Permissions.canReadStorage() checks READ_MEDIA_VIDEO/AUDIO on
-    // API 33+, not READ_EXTERNAL_STORAGE — confirmed for real: without it granted, VideoPlaybackTest
-    // saw an empty medialibrary and skipped via Assume even on a device that does have video files.
+    // GrantPermissionRule tolerates a permission that exists on the current API level but isn't
+    // dangerous/required — it does NOT tolerate one the OS doesn't know about at all. Confirmed
+    // for real in CI (API 30 emulator): granting READ_MEDIA_VIDEO there throws
+    // IllegalArgumentException: Unknown permission, since it (and READ_MEDIA_AUDIO,
+    // POST_NOTIFICATIONS) was only introduced in API 33. So these are only requested on API 33+,
+    // where org.videolan.vlc.util.Permissions.canReadStorage() actually checks them instead of
+    // READ_EXTERNAL_STORAGE — confirmed for real on a Pixel_7a/API 35 emulator: without them
+    // granted there, VideoPlaybackTest saw an empty medialibrary and skipped via Assume even with
+    // real video files present.
     @Rule
     @JvmField
     val storagePermissionGrant: GrantPermissionRule = GrantPermissionRule.grant(
-            "android.permission.READ_EXTERNAL_STORAGE",
-            "android.permission.READ_MEDIA_VIDEO",
-            "android.permission.READ_MEDIA_AUDIO",
-            "android.permission.POST_NOTIFICATIONS")
+            *buildList {
+                add("android.permission.READ_EXTERNAL_STORAGE")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    add("android.permission.READ_MEDIA_VIDEO")
+                    add("android.permission.READ_MEDIA_AUDIO")
+                    add("android.permission.POST_NOTIFICATIONS")
+                }
+            }.toTypedArray())
 
     val context: Context = ApplicationProvider.getApplicationContext()
 

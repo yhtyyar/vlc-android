@@ -399,3 +399,35 @@ individual fix has direct evidence behind it (exact stack traces, exact
 logcat correlations, or a pulled screenshot), but a from-scratch full-suite
 run — ideally on a fresh emulator or in real CI — is needed to confirm all
 15 pass together in one sitting.
+
+## 10. First confirmed real CI run: a wrong assumption about `GrantPermissionRule`
+
+The `instrumented-tests` job (`.github/workflows/kaspresso-tests.yml`) ran
+for real in GitHub Actions and failed with a genuine, verifiable log (the
+`gradle/actions:` and `Terminate Emulator` lines confirm it — unlike an
+earlier report that turned out to have no run or log behind it at all):
+
+```text
+java.lang.IllegalArgumentException: Unknown permission: android.permission.READ_MEDIA_VIDEO
+  at android.app.UiAutomation.grantRuntimePermissionAsUser
+  at androidx.test.runner.permission.UiAutomationPermissionGranter.requestPermissions
+  at androidx.test.rule.GrantPermissionRule$RequestPermissionStatement.evaluate
+```
+
+This corrects a wrong assumption documented (and code-commented) in §9:
+`GrantPermissionRule` tolerates a permission that *exists* on the running
+API level but isn't dangerous/required — it does **not** tolerate a
+permission the OS doesn't know about at all. `READ_MEDIA_VIDEO`,
+`READ_MEDIA_AUDIO`, and `POST_NOTIFICATIONS` were all introduced in API 33;
+the CI workflow's emulator runs API 30 (`api-level: 30`), where
+`UiAutomation.grantRuntimePermission` throws for them outright. This never
+surfaced on the Pixel_7a/API 35 emulator used for all the on-device
+debugging in §7-9, since those permissions do exist there.
+
+**Fix**: `KaspressoUITest`'s `GrantPermissionRule` now builds its permission
+list conditionally on `Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU`
+(API 33), requesting only `READ_EXTERNAL_STORAGE` below that. This matches
+`org.videolan.vlc.util.Permissions.canReadStorage()`'s own real branching
+logic (confirmed in §7), which checks the modern permissions on 33+ and
+`READ_EXTERNAL_STORAGE` below it — so storage access still works correctly
+on the CI's API 30 emulator via the legacy permission alone.
