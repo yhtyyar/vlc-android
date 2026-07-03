@@ -76,9 +76,12 @@ jobs:
       # Scoped to org.videolan.vlc.kaspresso.* only — the existing Espresso suite has its own
       # coverage and CI story and isn't the concern of this workflow.
       #
-      # VideoPlaybackTest/AudioPlaybackTest/TvNavigationTest need real media (see ANALYSIS.md,
-      # "Media test fixtures", which this repo has no mechanism to provision) and will skip
-      # themselves via Assume rather than fail on this stock emulator image.
+      # VideoPlaybackTest/AudioPlaybackTest push real, small, checked-in sample media
+      # (application/app/src/androidTest/assets/media/, via TestMediaProvider) before each test,
+      # so they exercise real playback rather than skip. The Assume check in each is a defensive
+      # fallback in case the push/rescan doesn't land in time on a given runner. See ANALYSIS.md
+      # §8-9 for how these fixtures were chosen and the real bugs found running this suite for
+      # real (this workflow itself hasn't been run in real CI yet — see §9's closing note).
       - name: Run the Kaspresso instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:

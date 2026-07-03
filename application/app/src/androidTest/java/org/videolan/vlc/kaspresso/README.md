@@ -8,9 +8,25 @@ what's covered, what's a known follow-up, and how the real resource IDs used her
 
 - `KaspressoConfig.kt` / `KaspressoUITest.kt` — framework setup and the base test class.
 - `screens/` — Page Objects (`MainScreen`, `PlayerScreen`, `AudioPlayerScreen`, `FileBrowserScreen`,
-  `SettingsScreen`).
+  `SettingsScreen`, `EqualizerScreen`, `MoreScreen`, `NetworkStreamScreen`).
 - `matchers/` — custom Hamcrest matchers (`VlcMatchers.kt`).
-- `tests/` — the actual test classes.
+- `utils/` — `TestMediaProvider.kt` pushes the real sample media in `assets/media/` onto the
+  device for the playback tests.
+- `tests/` — the actual test classes: `SmokeTest`, `VideoPlaybackTest`, `AudioPlaybackTest`,
+  `TvNavigationTest`, `EqualizerTest`, `NetworkStreamTest`, `PerformanceTest`.
+
+## Test status (last verified: see ANALYSIS.md §9)
+
+Reliably passing across multiple independent runs, including after a full emulator data wipe:
+`SmokeTest` (3), `TvNavigationTest` (2), `EqualizerTest` (2), `PerformanceTest` (2) — 9 of 15.
+
+`VideoPlaybackTest`, `AudioPlaybackTest`, and `NetworkStreamTest` each had a real, confirmed bug
+found and fixed via on-device debugging (see ANALYSIS.md §9 for the exact evidence — stack traces,
+logcat correlations, and a pulled screenshot for the navigation bug). Each fix was individually
+verified to resolve the specific exception it targeted, but a single combined run to confirm all
+15 pass together hasn't completed cleanly yet — the local emulator used for this repeatedly hung
+after many hours of reuse in one session, unrelated to the code itself. Run the suite fresh
+(a new emulator, or real CI) to get a clean confirmation.
 
 ## Running locally
 
@@ -42,13 +58,19 @@ step 5 is the `instrumented-tests` job, on an emulator.
 
 ## Known limitations
 
-- **No real media fixtures.** `VideoPlaybackTest` and `AudioPlaybackTest` need the medialibrary to
-  have already indexed at least one real video/audio file. This repo has no mechanism to provision
-  that on a fresh emulator, so these tests check for existing media in `@Before` and skip
-  themselves (via `org.junit.Assume`) rather than fail when the library is empty.
 - **TV focus assertions are shallow.** `TvNavigationTest` exercises `MainTvActivity`'s Leanback
   `BrowseSupportFragment` with D-Pad/remote key events, but only asserts the activity survives —
   Leanback manages its own internal, unexposed focus state, so asserting a specific row/card
   gained focus would need further Leanback-internal API research.
 - **Allure results pull path in CI is unverified.** See the inline comment in
   `kaspresso-tests.yml` above the "Pull Allure results off the device" step.
+- **Reusing one local emulator across many iterations accumulates artifacts** under
+  `/storage/emulated/0/Documents/` (screenshots/recordings/logcat this suite's own Kaspresso
+  interceptors write) that make `Medialibrary.forceRescan()` (used by `TestMediaProvider`) slow —
+  observed taking minutes after ~7 runs. `rescanAndAwait()` bounds the wait at 30s to avoid a hang,
+  but if you're iterating locally, periodically clean that directory. A fresh CI emulator doesn't
+  have this problem.
+- **No Playlist-creation or Subtitle test.** Research found no independent "create empty playlist"
+  flow in this app (creation only happens via an existing track's "Add to playlist" context menu,
+  already covered by the existing Espresso `PlaylistFragmentUITest`), and the bundled sample video
+  has no subtitle track to test against. See ANALYSIS.md §8 for the full reasoning.

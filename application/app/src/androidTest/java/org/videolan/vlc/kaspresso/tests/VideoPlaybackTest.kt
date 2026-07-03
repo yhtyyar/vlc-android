@@ -24,17 +24,19 @@ import org.videolan.vlc.kaspresso.KaspressoUITest
 import org.videolan.vlc.kaspresso.matchers.isProgressChanging
 import org.videolan.vlc.kaspresso.screens.MainScreen
 import org.videolan.vlc.kaspresso.screens.PlayerScreen
+import org.videolan.vlc.kaspresso.utils.TestMediaProvider
 
 /**
- * Requires the medialibrary to have already indexed at least one real video file. This repo has
- * no mechanism to provision that on a fresh emulator (see ANALYSIS.md, "Media test fixtures"), so
- * these tests skip themselves via [assumeTrue] rather than fail on an empty library.
+ * Pushes a small, real, checked-in sample video (application/app/src/androidTest/assets/media/sample_video.mp4,
+ * via [TestMediaProvider]) before each test so these run against real content instead of relying
+ * on whatever the device/emulator happens to already have indexed. The [assumeTrue] check is kept
+ * as a defensive fallback in case the push/rescan doesn't land in time on a given device.
  *
  * Confirmed for real on a Pixel_7a/API 35 emulator: Kaspresso's withAllureSupport() records a
  * screen video per test under /storage/emulated/0/Documents/video/ by default, and VLC's own
  * medialibrary scanner indexes those .mp4 files as playable content — so a naive "is there any
  * video" check sees Kaspresso's own artifacts as real media. [KASPRESSO_ARTIFACT_PATH_MARKER]
- * filters those out.
+ * filters those out, so playback tests exercise the pushed sample, not a stale recording.
  */
 @Epic("VLC Android")
 @Feature("Video playback")
@@ -44,11 +46,14 @@ class VideoPlaybackTest : KaspressoUITest() {
     val activityRule = ActivityScenarioRule(MainActivity::class.java)
 
     @Before
-    fun requireAtLeastOneVideo() {
+    fun pushSampleVideo() {
+        TestMediaProvider.pushVideo()
+        TestMediaProvider.rescanAndAwait()
+
         val hasRealVideos = Medialibrary.getInstance()
                 .getPagedVideos(Medialibrary.SORT_DEFAULT, false, true, false, 50, 0)
                 .any { it.uri?.path?.contains(KASPRESSO_ARTIFACT_PATH_MARKER) != true }
-        assumeTrue("No real video indexed by the medialibrary on this device/emulator — skipping", hasRealVideos)
+        assumeTrue("Sample video wasn't indexed by the medialibrary in time — skipping", hasRealVideos)
     }
 
     // An extension on BaseTestContext (not a plain method) so flakySafely resolves via the

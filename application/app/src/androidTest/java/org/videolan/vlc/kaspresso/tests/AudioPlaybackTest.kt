@@ -4,6 +4,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.contrib.RecyclerViewActions
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import com.kaspersky.kaspresso.testcases.core.testcontext.BaseTestContext
@@ -12,6 +13,7 @@ import io.qameta.allure.kotlin.Feature
 import io.qameta.allure.kotlin.Severity
 import io.qameta.allure.kotlin.SeverityLevel
 import io.qameta.allure.kotlin.Story
+import org.hamcrest.Matchers.allOf
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
@@ -22,10 +24,14 @@ import org.videolan.vlc.gui.MainActivity
 import org.videolan.vlc.kaspresso.KaspressoUITest
 import org.videolan.vlc.kaspresso.screens.AudioPlayerScreen
 import org.videolan.vlc.kaspresso.screens.MainScreen
+import org.videolan.vlc.kaspresso.utils.TestMediaProvider
 
 /**
- * Requires the medialibrary to have already indexed at least one real audio file (see
- * ANALYSIS.md, "Media test fixtures" — this repo has no fixture-provisioning mechanism).
+ * Pushes two small, real, checked-in sample tracks
+ * (application/app/src/androidTest/assets/media/sample_audio*.mp3, via [TestMediaProvider])
+ * before each test — two distinct tracks so [nextButtonAdvancesToAnotherTrack] has somewhere real
+ * to go. The [assumeTrue] check is kept as a defensive fallback in case the push/rescan doesn't
+ * land in time on a given device.
  *
  * The audio tab (R.id.nav_audio) lands on org.videolan.vlc.gui.audio.AudioBrowserFragment, which
  * hosts nested Artists/Albums/Songs sub-tabs sharing the same list layout/id
@@ -42,21 +48,29 @@ class AudioPlaybackTest : KaspressoUITest() {
     val activityRule = ActivityScenarioRule(MainActivity::class.java)
 
     @Before
-    fun requireAtLeastOneAudioTrack() {
+    fun pushSampleTracks() {
+        TestMediaProvider.pushAudio()
+        TestMediaProvider.rescanAndAwait()
+
         val hasAudio = Medialibrary.getInstance()
                 .getPagedAudio(Medialibrary.SORT_DEFAULT, false, true, false, 1, 0)
                 .isNotEmpty()
-        assumeTrue("No audio track indexed by the medialibrary on this device/emulator — skipping", hasAudio)
+        assumeTrue("Sample tracks weren't indexed by the medialibrary in time — skipping", hasAudio)
     }
 
     // An extension on BaseTestContext (not a plain method) so flakySafely resolves via the
     // implicit TestContext receiver when called from inside a run { } / step { } block.
     private fun BaseTestContext.playFirstAudioTrack() {
+        // audioTab.click() itself is wrapped too: on a cold start (fresh install, first
+        // interaction) the bottom nav can take a moment past a plain click's immediate lookup.
+        flakySafely { MainScreen { audioTab.isVisible() } }
         MainScreen {
             audioTab.click()
             flakySafely { audioList.isVisible() }
         }
-        onView(withId(R.id.audio_list))
+        // Scoped to isDisplayed(), matching MainScreen.audioList — several R.id.audio_list
+        // instances can exist at once (one per off-screen ViewPager sub-tab kept alive).
+        onView(allOf(withId(R.id.audio_list), isDisplayed()))
                 .perform(RecyclerViewActions.actionOnItemAtPosition<RecyclerView.ViewHolder>(0, click()))
     }
 

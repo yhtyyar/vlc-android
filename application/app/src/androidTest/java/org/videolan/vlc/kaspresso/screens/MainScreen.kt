@@ -37,6 +37,9 @@ object MainScreen : KScreen<MainScreen>() {
     val videoGridEmptyState = KView { withId(R.id.empty_loading) }
 
     // res/layout/audio_recyclerview.xml — shared by the Artists/Albums/Songs sub-tabs under
-    // the audio tab (org.videolan.vlc.gui.audio.AudioBrowserFragment); only meaningful there.
-    val audioList = KRecyclerView(builder = { withId(R.id.audio_list) }, itemTypeBuilder = {})
+    // the audio tab (org.videolan.vlc.gui.audio.AudioBrowserFragment), each hosted in its own
+    // ViewPager page kept alive off-screen, so several R.id.audio_list instances can exist in the
+    // hierarchy at once (confirmed for real: AmbiguousViewMatcherException, "matches 5 views").
+    // isDisplayed() scopes this to whichever sub-tab is actually on screen.
+    val audioList = KRecyclerView(builder = { withId(R.id.audio_list); isDisplayed() }, itemTypeBuilder = {})
 }
