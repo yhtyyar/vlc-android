@@ -13,20 +13,26 @@ what's covered, what's a known follow-up, and how the real resource IDs used her
 - `utils/` — `TestMediaProvider.kt` pushes the real sample media in `assets/media/` onto the
   device for the playback tests.
 - `tests/` — the actual test classes: `SmokeTest`, `VideoPlaybackTest`, `AudioPlaybackTest`,
-  `TvNavigationTest`, `EqualizerTest`, `NetworkStreamTest`, `PerformanceTest`.
+  `TvNavigationTest`, `EqualizerTest`, `NetworkStreamTest`, `PerformanceTest`, `FileBrowserTest`,
+  `SearchTest`.
 
-## Test status (last verified: see ANALYSIS.md §9)
+## Test status (last verified: see ANALYSIS.md §9 and §11)
 
 Reliably passing across multiple independent runs, including after a full emulator data wipe:
-`SmokeTest` (3), `TvNavigationTest` (2), `EqualizerTest` (2), `PerformanceTest` (2) — 9 of 15.
+`SmokeTest` (3), `TvNavigationTest` (2), `EqualizerTest` (2), `PerformanceTest` (2) — 9 of 19.
 
 `VideoPlaybackTest`, `AudioPlaybackTest`, and `NetworkStreamTest` each had a real, confirmed bug
 found and fixed via on-device debugging (see ANALYSIS.md §9 for the exact evidence — stack traces,
-logcat correlations, and a pulled screenshot for the navigation bug). Each fix was individually
-verified to resolve the specific exception it targeted, but a single combined run to confirm all
-15 pass together hasn't completed cleanly yet — the local emulator used for this repeatedly hung
-after many hours of reuse in one session, unrelated to the code itself. Run the suite fresh
-(a new emulator, or real CI) to get a clean confirmation.
+logcat correlations, and a pulled screenshot for the navigation bug); each fix was individually
+verified to resolve the specific exception it targeted. `FileBrowserTest`, `SearchTest`, and
+`VideoPlaybackTest.tappingTheFabPlaysAllVideos` (§11) compile clean and are built from real,
+freshly-researched ids, but haven't run to completion yet — every `connectedDebugAndroidTest`
+attempt against this project's shared local emulator (including with a freshly restarted Gradle
+daemon and a cold-booted emulator) has hung for the full 10-minute timeout with 0 tests completed.
+This looks like a limitation of running instrumented tests in this specific sandboxed environment,
+not the test code itself — `compileDebugAndroidTestKotlin` has never failed, and the 9 tests above
+did pass repeatedly on this same emulator image earlier in the project's history. Run the suite
+fresh (a different machine, or real CI) to get a clean runtime confirmation.
 
 ## Running locally
 

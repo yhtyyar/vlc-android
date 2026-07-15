@@ -431,3 +431,47 @@ list conditionally on `Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU`
 logic (confirmed in §7), which checks the modern permissions on 33+ and
 `READ_EXTERNAL_STORAGE` below it — so storage access still works correctly
 on the CI's API 30 emulator via the legacy permission alone.
+
+## 11. Sixth pass: expanded coverage (Search, File browser, FAB play-all)
+
+Added three real-ID-verified additions, researched fresh rather than assumed:
+
+- **`SearchTest`, reusing the existing `MainScreen.searchButton`** — confirmed
+  `R.id.ml_menu_filter` expands an inline `androidx.appcompat.widget.SearchView`
+  as the toolbar's collapsible action view (`ContentActivity`, which
+  `MainActivity` extends) — it is not a separate Activity/Fragment, and the
+  expanded `SearchAutoComplete` input has no fixed resource id of its own.
+  `SearchTest` mirrors the exact click-then-dismiss interaction the existing
+  Espresso suite already proved out (`PlaylistFragmentUITest`, "Check search
+  shows") rather than inventing a new way to address the un-ided input field.
+- **`FileBrowserScreen.emptyState`** (`R.id.empty_loading`) — confirmed
+  `BaseBrowserFragment.updateEmptyView()` toggles `network_list`
+  (`GONE`/`VISIBLE`) against `empty_loading` depending on whether the current
+  location has anything to browse, and that `R.id.ariane` (breadcrumb) is
+  `GONE` at the root and only appears after entering a folder. Since which of
+  the two states the root "Directories" tab lands in depends on what storage
+  the device/emulator actually exposes, `FileBrowserTest` asserts the screen
+  reaches *one of* its two defined states (via a combined
+  `anyOf(withId(network_list), withId(empty_loading))` + `isDisplayed()`
+  matcher) rather than assuming a specific outcome.
+- **`VideoPlaybackTest.tappingTheFabPlaysAllVideos`** — confirmed the FAB's
+  `onFabPlayClick` on the video tab calls `VideosViewModel.playAll()`, a
+  distinct code path from tapping a grid item directly, and that its
+  visibility is gated on the grid being non-empty
+  (`setFabPlayVisibility(!viewModel.isEmpty())`) — satisfied by the pushed
+  sample video already used elsewhere in this test class.
+
+**Verification status**: all three compile clean. Runtime verification was
+attempted three times against a freshly booted emulator (once with a
+freshly restarted Gradle daemon, to rule that out specifically) and every
+attempt hung identically (`EXIT:124`, 0 tests completed for the full 10
+minutes) — the same failure mode as §9's closing note, now confirmed
+reproducible even from a cold start with nothing carried over from a prior
+run. This points to a limitation of running `connectedDebugAndroidTest`
+against an emulator in this specific sandboxed environment, not the test
+code: `compileDebugAndroidTestKotlin` has succeeded on every attempt this
+entire project, and the 9 previously-reliable tests (`SmokeTest`,
+`TvNavigationTest`, `EqualizerTest`, `PerformanceTest`) did pass repeatedly
+earlier in this project's history on this same emulator image. Real CI or a
+different local machine is the way to get a clean runtime confirmation of
+these three additions.

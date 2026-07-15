@@ -132,6 +132,37 @@ class VideoPlaybackTest : KaspressoUITest() {
         }
     }
 
+    @Test
+    @Story("FAB play-all")
+    @Severity(SeverityLevel.NORMAL)
+    fun tappingTheFabPlaysAllVideos() = run {
+        // VideoGridFragment.onFabPlayClick() calls viewModel.playAll(), a distinct code path from
+        // tapping a grid item directly — confirmed for real. The FAB (R.string.play content
+        // description) is only visible once the grid is non-empty (setFabPlayVisibility checks
+        // !viewModel.isEmpty()), which the pushed sample video satisfies.
+        step("Open the video tab") {
+            MainScreen {
+                videoTab.click()
+                flakySafely { videoGridList.isVisible() }
+            }
+        }
+
+        step("Tap the FAB to play all videos") {
+            flakySafely { MainScreen { fab.isVisible() } }
+            MainScreen { fab.click() }
+        }
+
+        step("Player controls appear") {
+            flakySafely {
+                PlayerScreen {
+                    playPauseButton.isVisible()
+                    seekBar.isVisible()
+                }
+            }
+            device.screenshots.take("video_fab_play_all")
+        }
+    }
+
     private companion object {
         const val KASPRESSO_ARTIFACT_PATH_MARKER = "/Documents/"
     }
