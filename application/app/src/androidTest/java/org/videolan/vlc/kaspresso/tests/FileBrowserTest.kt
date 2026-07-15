@@ -1,31 +1,26 @@
 package org.videolan.vlc.kaspresso.tests
 
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
-import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import io.qameta.allure.kotlin.Epic
 import io.qameta.allure.kotlin.Feature
 import io.qameta.allure.kotlin.Severity
 import io.qameta.allure.kotlin.SeverityLevel
 import io.qameta.allure.kotlin.Story
-import org.hamcrest.Matchers.allOf
-import org.hamcrest.Matchers.anyOf
 import org.junit.Rule
 import org.junit.Test
-import org.videolan.vlc.R
 import org.videolan.vlc.gui.MainActivity
 import org.videolan.vlc.kaspresso.KaspressoUITest
-import org.videolan.vlc.kaspresso.screens.FileBrowserScreen
+import org.videolan.vlc.kaspresso.screens.MainBrowserScreen
 import org.videolan.vlc.kaspresso.screens.MainScreen
 
 /**
- * Whether the root "Directories" tab shows a populated [FileBrowserScreen.fileList] or the
- * [FileBrowserScreen.emptyState] depends on what storage the device/emulator actually exposes
- * (confirmed for real: `BaseBrowserFragment.updateEmptyView()` toggles between the two, and
- * either is a legitimate outcome at the root) — so these tests assert the screen reaches one of
- * its two defined states rather than assuming a specific one.
+ * A prior version of this test targeted [org.videolan.vlc.kaspresso.screens.FileBrowserScreen]'s
+ * ids (R.id.network_list / R.id.empty_loading), which don't exist at the Directories tab's root —
+ * confirmed for real via a CI failure. The root is
+ * org.videolan.vlc.gui.browser.MainBrowserFragment ([MainBrowserScreen]); each of its three
+ * sections (Favorites/Local storage/Network) is its own TitleListView row, and a row being empty
+ * (e.g. "No favorite") doesn't hide the row itself — so asserting these rows are visible is a safe
+ * check regardless of what storage the device/emulator actually exposes.
  */
 @Epic("VLC Android")
 @Feature("File browser")
@@ -37,43 +32,19 @@ class FileBrowserTest : KaspressoUITest() {
     @Test
     @Story("Navigation")
     @Severity(SeverityLevel.NORMAL)
-    fun openingTheDirectoriesTabReachesAPopulatedOrEmptyState() = run {
+    fun openingTheDirectoriesTabShowsTheBrowseSections() = run {
         step("Open the Directories tab") {
             MainScreen { directoriesTab.click() }
         }
 
-        step("The file list or the empty state is shown") {
+        step("The favorites and local storage sections are shown") {
             flakySafely {
-                onView(
-                        allOf(
-                                anyOf(withId(R.id.network_list), withId(R.id.empty_loading)),
-                                isDisplayed()
-                        )
-                ).check(matches(isDisplayed()))
-            }
-            device.screenshots.take("directories_root_state")
-        }
-
-        step("The breadcrumb is not shown at the root") {
-            FileBrowserScreen { breadcrumb.isGone() }
-        }
-    }
-
-    @Test
-    @Story("Toolbar")
-    @Severity(SeverityLevel.NORMAL)
-    fun theFilterAndSortMenuItemsAreReachable() = run {
-        step("Open the Directories tab") {
-            MainScreen { directoriesTab.click() }
-        }
-
-        step("Filter and sort menu items are visible regardless of content") {
-            flakySafely {
-                FileBrowserScreen {
-                    filterButton.isVisible()
-                    sortButton.isVisible()
+                MainBrowserScreen {
+                    favoritesEntry.isVisible()
+                    localEntry.isVisible()
                 }
             }
+            device.screenshots.take("directories_root_sections")
         }
     }
 }

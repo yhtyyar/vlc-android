@@ -475,3 +475,40 @@ entire project, and the 9 previously-reliable tests (`SmokeTest`,
 earlier in this project's history on this same emulator image. Real CI or a
 different local machine is the way to get a clean runtime confirmation of
 these three additions.
+
+## 12. Second confirmed real CI run: `FileBrowserTest` targeted the wrong fragment
+
+A second real CI run (again confirmed genuine via the `gradle/actions:` /
+`Terminate Emulator` log signature) failed inside `FileBrowserTest`, with a
+dumped view hierarchy showing `emptyTextView` (text "No favorite"),
+`permissionTitle`, and `permissionTextView` — all children of the shared
+`view_empty_loading.xml` (`EmptyLoadingStateView`) component, but not the
+ids `FileBrowserScreen` was looking for.
+
+Tracing `"No favorite"` (`MainBrowserFragment.kt`:
+`favoritesEntry.loading.emptyText = getString(R.string.no_favorite)`)
+confirmed the real bug: `MainScreen.directoriesTab` does **not** lead
+directly to `org.videolan.vlc.gui.browser.FileBrowserFragment`
+(`res/layout/directory_browser.xml`, where `R.id.network_list` /
+`R.id.empty_loading` / `R.id.ariane` actually live) as §11 assumed. The
+fragment shown at the Directories tab's *root* is
+`org.videolan.vlc.gui.browser.MainBrowserFragment`
+(`res/layout/main_browser_fragment.xml`), which shows three separate
+`TitleListView` section rows — `R.id.fav_browser_entry`,
+`R.id.local_browser_entry`, `R.id.network_browser_entry` — the same
+compound-view pattern already used by `MoreScreen`'s entries.
+`FileBrowserFragment` is one level deeper, reached by clicking into one of
+those rows.
+
+**Fix**: added `MainBrowserScreen` (the real root Page Object) and rewrote
+`FileBrowserTest` to assert `favoritesEntry`/`localEntry` are visible after
+opening the Directories tab — a safe check regardless of what storage the
+device/emulator exposes, since a section being empty doesn't hide the row
+itself. Kept `FileBrowserScreen` (now clearly documented as the *deeper*
+fragment's Page Object) for a future test that navigates into
+`localEntry`'s list — not attempted this pass, since that click-through
+wasn't independently verified. Also dropped the unconfirmed
+"filter/sort menu items" assertion from the old test:
+`MainBrowserFragment` only inflates an action-mode menu for long-press
+selection, not necessarily the same toolbar items `BaseBrowserFragment`
+subclasses share, and this wasn't verified either way.
