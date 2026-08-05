@@ -2,23 +2,41 @@ package org.videolan.vlc.kaspresso.screens
 
 import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.common.views.KView
+import io.github.kakaocup.kakao.text.KButton
+import io.github.kakaocup.kakao.text.KTextView
 import org.videolan.vlc.R
 
 /**
- * Page Object for [org.videolan.vlc.gui.MoreFragment], reached via [MainScreen.moreTab].
+ * Page Object для экрана MoreFragment.
+ * Layout: res/layout/more_fragment.xml
+ *
+ * Экран содержит:
+ *  - Кнопки Settings и About вверху
+ *  - Секции Streams и History (TitleListView)
+ *  - Donations (видна только при определённых условиях)
  */
 object MoreScreen : KScreen<MoreScreen>() {
     override val layoutId: Int? = null
     override val viewClass: Class<*>? = null
 
-    // org.videolan.vlc.gui.view.TitleListView is not itself clickable — confirmed for real (a
-    // click on it was a silent no-op). MoreFragment.kt wires navigation to MRLPanelFragment on
-    // streamsEntry.setOnActionClickListener, i.e. the compound view's internal R.id.action_button
-    // (TitleListView.kt:70-71). historyEntry is a second TitleListView on the same screen with
-    // its own action_button, so this must be scoped to streams_entry specifically.
+    // ======== Top Buttons ========
+    val settingsButton = KButton { withId(R.id.settingsButton) }
+    val aboutButton = KButton { withId(R.id.aboutButton) }
+
+    // ======== Streams Section ========
     val streamsEntry = KView { withId(R.id.streams_entry) }
     val streamsActionButton = KView {
         withId(R.id.action_button)
         isDescendantOfA { withId(R.id.streams_entry) }
     }
+
+    // ======== History Section ========
+    val historyEntry = KView { withId(R.id.history_entry) }
+    val historyActionButton = KView {
+        withId(R.id.action_button)
+        isDescendantOfA { withId(R.id.history_entry) }
+    }
+
+    // ======== Donations ========
+    val donationsButton = KView { withId(R.id.donationsButton) }
 }

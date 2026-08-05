@@ -1,45 +1,86 @@
 package org.videolan.vlc.kaspresso.screens
 
+import android.view.View
 import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.common.views.KView
+import io.github.kakaocup.kakao.image.KImageView
 import io.github.kakaocup.kakao.recycler.KRecyclerView
+import io.github.kakaocup.kakao.text.KTextView
+import org.hamcrest.Matcher
 import org.videolan.vlc.R
 
 /**
- * Page Object for [org.videolan.vlc.gui.MainActivity] (res/layout/main.xml).
+ * Page Object для главного экрана VLC (MainActivity).
+ *
+ * Экран содержит:
+ *  - BottomNavigationView с 5 табами: Video, Audio, Browse, Playlists, More
+ *  - Toolbar с иконкой поиска
+ *  - FAB (кнопка "Play all") — видна только на вкладке Video
+ *  - Fragment placeholder для контента
  */
 object MainScreen : KScreen<MainScreen>() {
     override val layoutId: Int? = null
     override val viewClass: Class<*>? = null
 
-    // main.xml has both a BottomNavigationView (R.id.navigation, phone width) and a
-    // NavigationRailView (R.id.navigation_rail, wide layout) sharing the same
-    // @menu/bottom_navigation resource, so both always inflate menu items with these same ids —
-    // confirmed for real on a Pixel_7a/API 35 emulator (AmbiguousViewMatcherException on a bare
-    // withId). Scoping to the BottomNavigationView disambiguates; it's also why the existing
-    // Espresso suite never clicks these tabs by id directly (see PlaylistFragmentUITest, which
-    // deep-links via an EXTRA_TARGET intent extra instead).
-    val videoTab = KView { withId(R.id.nav_video); isDescendantOfA { withId(R.id.navigation) } }
-    val audioTab = KView { withId(R.id.nav_audio); isDescendantOfA { withId(R.id.navigation) } }
-    val directoriesTab = KView { withId(R.id.nav_directories); isDescendantOfA { withId(R.id.navigation) } }
-    val playlistsTab = KView { withId(R.id.nav_playlists); isDescendantOfA { withId(R.id.navigation) } }
-    val moreTab = KView { withId(R.id.nav_more); isDescendantOfA { withId(R.id.navigation) } }
+    // ======== Bottom Navigation Tabs ========
+    val videoTab = KView { withMatcher(tabMatcher(R.id.nav_video)) }
+    val audioTab = KView { withMatcher(tabMatcher(R.id.nav_audio)) }
+    val directoriesTab = KView { withMatcher(tabMatcher(R.id.nav_directories)) }
+    val playlistsTab = KView { withMatcher(tabMatcher(R.id.nav_playlists)) }
+    val moreTab = KView { withMatcher(tabMatcher(R.id.nav_more)) }
 
-    val fragmentPlaceholder = KView { withId(R.id.fragment_placeholder) }
-    val fab = KView { withId(R.id.fab) }
-
-    // Present on the toolbar of every top-level tab (org.videolan.vlc.gui.browser.MediaBrowserFragment).
+    // ======== Toolbar ========
+    val toolbar = KView { withId(R.id.main_toolbar) }
     val searchButton = KView { withId(R.id.ml_menu_filter) }
+    val sortButton = KView { withId(R.id.ml_menu_sortby) }
 
-    // org.videolan.vlc.gui.video.VideoGridFragment (res/layout/video_grid.xml) — only meaningful
-    // while the video tab is the active fragment.
-    val videoGridList = KRecyclerView(builder = { withId(R.id.video_grid) }, itemTypeBuilder = {})
-    val videoGridEmptyState = KView { withId(R.id.empty_loading) }
+    // ======== Content Area ========
+    val fragmentPlaceholder = KView { withId(R.id.fragment_placeholder) }
 
-    // res/layout/audio_recyclerview.xml — shared by the Artists/Albums/Songs sub-tabs under
-    // the audio tab (org.videolan.vlc.gui.audio.AudioBrowserFragment), each hosted in its own
-    // ViewPager page kept alive off-screen, so several R.id.audio_list instances can exist in the
-    // hierarchy at once (confirmed for real: AmbiguousViewMatcherException, "matches 5 views").
-    // isDisplayed() scopes this to whichever sub-tab is actually on screen.
-    val audioList = KRecyclerView(builder = { withId(R.id.audio_list); isDisplayed() }, itemTypeBuilder = {})
+    // FAB — кнопка "Play all", видна на вкладке Video
+    val playAllFab = KView { withId(R.id.fab) }
+
+    // ======== Video Tab Content ========
+    // Видео-грид (GridView, не RecyclerView)
+    val videoGridList = KView { withId(R.id.video_grid) }
+    val videoGridEmptyState = KTextView { withId(R.id.empty_loading) }
+
+    // ======== Audio Tab Content ========
+    // RecyclerView со списком аудио-файлов
+    val audioList = KRecyclerView(
+        builder = { withId(R.id.audio_list); isDisplayed() },
+        itemTypeBuilder = {}
+    )
+
+    // ======== Playlists Tab Content ========
+    val playlistsList = KRecyclerView(
+        builder = { withId(R.id.audio_list); isDisplayed() },
+        itemTypeBuilder = {}
+    )
+}
+
+/**
+ * Создаёт Hamcrest matcher для bottom-navigation таба.
+ * Разрешает неоднозначность между BottomNavigationView и NavigationRailView
+ * (один из них скрыт — GONE) за счёт проверки isDisplayed().
+ */
+private fun tabMatcher(@androidx.annotation.IdRes menuItemId: Int): Matcher<View> {
+    return org.hamcrest.Matchers.allOf(
+        androidx.test.espresso.matcher.ViewMatchers.withId(menuItemId),
+        androidx.test.espresso.matcher.ViewMatchers.isDisplayed(),
+        org.hamcrest.Matchers.anyOf(
+            androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA(
+                org.hamcrest.Matchers.allOf(
+                    androidx.test.espresso.matcher.ViewMatchers.withId(R.id.navigation),
+                    androidx.test.espresso.matcher.ViewMatchers.isDisplayed()
+                )
+            ),
+            androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA(
+                org.hamcrest.Matchers.allOf(
+                    androidx.test.espresso.matcher.ViewMatchers.withId(R.id.navigation_rail),
+                    androidx.test.espresso.matcher.ViewMatchers.isDisplayed()
+                )
+            )
+        )
+    )
 }

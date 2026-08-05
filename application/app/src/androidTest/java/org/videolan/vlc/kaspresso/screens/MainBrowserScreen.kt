@@ -5,16 +5,11 @@ import io.github.kakaocup.kakao.common.views.KView
 import org.videolan.vlc.R
 
 /**
- * Page Object for [org.videolan.vlc.gui.browser.MainBrowserFragment] (res/layout/main_browser_fragment.xml),
- * the actual fragment shown at the root of [MainScreen.directoriesTab] — confirmed for real via a
- * CI failure: [FileBrowserScreen] (R.id.network_list / R.id.empty_loading / R.id.ariane, from
- * res/layout/directory_browser.xml) belongs to a *different*, deeper fragment
- * (org.videolan.vlc.gui.browser.FileBrowserFragment) reached only after clicking into one of the
- * three sections below — it is not present at the Directories tab's root.
+ * Page Object для корневого экрана браузера (MainBrowserFragment).
+ * Layout: res/layout/main_browser_fragment.xml
  *
- * Each section is its own org.videolan.vlc.gui.view.TitleListView (same compound view as
- * [MoreScreen]'s entries) with its own internal RecyclerView + EmptyLoadingStateView; a section
- * being empty (e.g. "No favorite") does not mean the row itself is hidden.
+ * Это первый экран при клике на таб "Browse" (Directories).
+ * Содержит три секции: Favorites, Local storage, Network.
  */
 object MainBrowserScreen : KScreen<MainBrowserScreen>() {
     override val layoutId: Int? = null

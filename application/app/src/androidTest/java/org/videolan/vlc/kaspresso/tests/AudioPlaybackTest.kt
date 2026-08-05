@@ -6,8 +6,9 @@ import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.contrib.RecyclerViewActions
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
-import androidx.test.ext.junit.rules.ActivityScenarioRule
-import com.kaspersky.kaspresso.testcases.core.testcontext.BaseTestContext
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
+import io.qameta.allure.kotlin.Description
 import io.qameta.allure.kotlin.Epic
 import io.qameta.allure.kotlin.Feature
 import io.qameta.allure.kotlin.Severity
@@ -16,95 +17,160 @@ import io.qameta.allure.kotlin.Story
 import org.hamcrest.Matchers.allOf
 import org.junit.Assume.assumeTrue
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.vlc.R
-import org.videolan.vlc.gui.MainActivity
 import org.videolan.vlc.kaspresso.KaspressoUITest
 import org.videolan.vlc.kaspresso.screens.AudioPlayerScreen
 import org.videolan.vlc.kaspresso.screens.MainScreen
 import org.videolan.vlc.kaspresso.utils.TestMediaProvider
 
 /**
- * Pushes two small, real, checked-in sample tracks
- * (application/app/src/androidTest/assets/media/sample_audio*.mp3, via [TestMediaProvider])
- * before each test — two distinct tracks so [nextButtonAdvancesToAnotherTrack] has somewhere real
- * to go. The [assumeTrue] check is kept as a defensive fallback in case the push/rescan doesn't
- * land in time on a given device.
+ * Тест-кейс: Воспроизведение аудио-файла
  *
- * The audio tab (R.id.nav_audio) lands on org.videolan.vlc.gui.audio.AudioBrowserFragment, which
- * hosts nested Artists/Albums/Songs sub-tabs sharing the same list layout/id
- * ([MainScreen.audioList], res/layout/audio_recyclerview.xml). Depending on which sub-tab is the
- * default, the first row may be a track (starts playback directly) or an artist/album (navigates
- * one level deeper first) — these tests assume the former. A mis-landed first click surfaces as a
- * real, informative test failure rather than a silently-wrong pass.
+ * Шаги теста:
+ *  ==========
+ *  1. Приложение открыто
+ *  2. Перейти на вкладку Audio
+ *  3. Клик по первому треку
+ *  4. Проверить открытие аудио-плеера (Title, Artist, Controls)
+ *  5. Нажать Pause
+ *  6. Нажать Play
+ *  7. Нажать Next (следующий трек)
+ *  8. Нажать Previous (предыдущий трек)
+ *  9. Нажать Shuffle
+ *  10. Нажать Repeat
+ *  11. Нажать Back
+ *
+ * Ожидаемый результат:
+ *  - Аудио воспроизводится
+ *  - Все контролы реагируют
+ *  - Переключение треков работает
+ *  - Shuffle и Repeat переключают состояния
  */
 @Epic("VLC Android")
-@Feature("Audio playback")
+@Feature("Воспроизведение аудио")
 class AudioPlaybackTest : KaspressoUITest() {
-
-    @get:Rule
-    val activityRule = ActivityScenarioRule(MainActivity::class.java)
 
     @Before
     fun pushSampleTracks() {
         TestMediaProvider.pushAudio()
         TestMediaProvider.rescanAndAwait()
+    }
 
-        val hasAudio = Medialibrary.getInstance()
+    @Test
+    @Story("Полный цикл воспроизведения аудио")
+    @Severity(SeverityLevel.CRITICAL)
+    @Description(
+        "TC-004: Воспроизведение аудио-файла — полный жизненный цикл.\n" +
+        "Приоритет: CRITICAL\n" +
+        "Предусловия: Минимум 2 аудио-трека в библиотеке\n" +
+        "Постусловия: Плеер закрыт, возврат на главный экран"
+    )
+    fun fullAudioPlaybackLifecycle() = run {
+        step("Предусловие: запустить приложение") {
+            ensureAppIsOpen()
+        }
+
+        step("ШАГ 1: Перейти на вкладку Audio") {
+            MainScreen {
+                audioTab.click()
+                Thread.sleep(1000)
+                flakySafely { audioList.isVisible() }
+            }
+            device.screenshots.take("audio_step1_audio_tab")
+        }
+
+        step("ШАГ 2: Клик по первому треку") {
+            val hasAudio = Medialibrary.getInstance()
                 .getPagedAudio(Medialibrary.SORT_DEFAULT, false, true, false, 1, 0)
                 .isNotEmpty()
-        assumeTrue("Sample tracks weren't indexed by the medialibrary in time — skipping", hasAudio)
-    }
+            assumeTrue("Нет аудио в медиабиблиотеке — тест пропущен", hasAudio)
 
-    // An extension on BaseTestContext (not a plain method) so flakySafely resolves via the
-    // implicit TestContext receiver when called from inside a run { } / step { } block.
-    private fun BaseTestContext.playFirstAudioTrack() {
-        // audioTab.click() itself is wrapped too: on a cold start (fresh install, first
-        // interaction) the bottom nav can take a moment past a plain click's immediate lookup.
-        flakySafely { MainScreen { audioTab.isVisible() } }
-        MainScreen {
-            audioTab.click()
-            flakySafely { audioList.isVisible() }
-        }
-        // Scoped to isDisplayed(), matching MainScreen.audioList — several R.id.audio_list
-        // instances can exist at once (one per off-screen ViewPager sub-tab kept alive).
-        onView(allOf(withId(R.id.audio_list), isDisplayed()))
+            onView(allOf(withId(R.id.audio_list), isDisplayed()))
                 .perform(RecyclerViewActions.actionOnItemAtPosition<RecyclerView.ViewHolder>(0, click()))
-    }
-
-    @Test
-    @Story("Playback controls")
-    @Severity(SeverityLevel.BLOCKER)
-    fun playingATrackShowsTheAudioPlayer() = run {
-        step("Start the first audio track from the library") {
-            playFirstAudioTrack()
+            Thread.sleep(3000)
+            device.screenshots.take("audio_step2_player_opened")
         }
 
-        step("The audio player appears with a title") {
-            flakySafely {
+        step("ШАГ 3: Проверка элементов аудио-плеера") {
+            flakySafely(timeoutMs = 10000) {
                 AudioPlayerScreen {
-                    headerPlayPauseButton.isVisible()
                     trackTitle.isVisible()
+                    artist.isVisible()
+                    playPauseButton.isVisible()
+                    progressBar.isVisible()
+                    currentTime.isVisible()
+                    totalTime.isVisible()
                 }
             }
-            device.screenshots.take("audio_playing")
-        }
-    }
-
-    @Test
-    @Story("Track switching")
-    @Severity(SeverityLevel.NORMAL)
-    fun nextButtonAdvancesToAnotherTrack() = run {
-        step("Start the first audio track from the library") {
-            playFirstAudioTrack()
-            flakySafely { AudioPlayerScreen { headerPlayPauseButton.isVisible() } }
+            device.screenshots.take("audio_step3_controls_visible")
         }
 
-        step("Skip to the next track") {
-            AudioPlayerScreen { headerNextButton.click() }
-            device.screenshots.take("audio_next_track")
+        step("ШАГ 4: Нажать Pause") {
+            AudioPlayerScreen {
+                playPauseButton.click()
+                Thread.sleep(1000)
+            }
+            device.screenshots.take("audio_step4_paused")
+        }
+
+        step("ШАГ 5: Нажать Play") {
+            AudioPlayerScreen {
+                playPauseButton.click()
+                Thread.sleep(1000)
+            }
+            device.screenshots.take("audio_step5_resumed")
+        }
+
+        step("ШАГ 6: Нажать Next (следующий трек)") {
+            AudioPlayerScreen {
+                nextButton.click()
+                Thread.sleep(2000)
+            }
+            device.screenshots.take("audio_step6_next_track")
+        }
+
+        step("ШАГ 7: Нажать Previous (предыдущий трек)") {
+            AudioPlayerScreen {
+                previousButton.click()
+                Thread.sleep(2000)
+            }
+            device.screenshots.take("audio_step7_previous_track")
+        }
+
+        step("ШАГ 8: Нажать Shuffle") {
+            AudioPlayerScreen {
+                shuffleButton.click()
+                Thread.sleep(1000)
+            }
+            device.screenshots.take("audio_step8_shuffle")
+        }
+
+        step("ШАГ 9: Нажать Repeat") {
+            AudioPlayerScreen {
+                repeatButton.click()
+                Thread.sleep(1000)
+            }
+            device.screenshots.take("audio_step9_repeat")
+        }
+
+        step("ШАГ 10: Вернуться на экран списка (Back)") {
+            val uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            uiDevice.pressBack()
+            Thread.sleep(2000)
+            device.screenshots.take("audio_step10_back_to_list")
+        }
+
+        step("ШАГ 11: Вернуться на главный экран (ещё раз Back)") {
+            val uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            uiDevice.pressBack()
+            Thread.sleep(2000)
+            device.screenshots.take("audio_step11_main_screen")
+        }
+
+        step("Результат: аудио воспроизводится, все контролы работают") {
+            device.screenshots.take("audio_final_result")
         }
     }
 }

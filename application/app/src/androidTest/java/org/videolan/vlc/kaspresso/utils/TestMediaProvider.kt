@@ -22,7 +22,8 @@ import java.io.File
 object TestMediaProvider {
 
     private const val ASSET_DIR = "media"
-    private const val DEVICE_DIR = "/sdcard/Movies/kaspresso_test_media"
+    // Use /sdcard/Download — always world-readable and scanned by MediaStore / VLC medialibrary.
+    private const val DEVICE_DIR = "/sdcard/Download/kaspresso_test_media"
 
     fun pushVideo(): File = pushAsset("sample_video.mp4")
 
@@ -57,6 +58,8 @@ object TestMediaProvider {
         device.executeShellCommand("mkdir -p $DEVICE_DIR")
         val devicePath = "$DEVICE_DIR/$assetName"
         device.executeShellCommand("cp ${localCopy.absolutePath} $devicePath")
+        // Trigger MediaStore scan so the file is visible to the medialibrary immediately.
+        device.executeShellCommand("am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://$devicePath")
         return File(devicePath)
     }
 }

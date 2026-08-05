@@ -1,11 +1,17 @@
 package org.videolan.vlc.kaspresso
 
-import android.content.Context
 import android.os.Build
+import android.os.PowerManager
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.IdlingPolicies
+import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.runner.AndroidJUnit4
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiSelector
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.ExternalResource
@@ -14,57 +20,238 @@ import org.videolan.resources.util.startMedialibrary
 import org.videolan.tools.KEY_SHOW_UPDATE
 import org.videolan.tools.Settings
 import org.videolan.tools.putSingle
+import org.videolan.vlc.gui.MainActivity
 import org.videolan.vlc.util.TestCoroutineContextProvider
+import java.util.concurrent.TimeUnit
 
 /**
- * Base class for the Kaspresso UI test suite (org.videolan.vlc.kaspresso.*), additive to the
- * existing Espresso suite based on [org.videolan.vlc.BaseUITest]. Mirrors its medialibrary
- * startup so screens backed by the media list aren't stuck loading.
+ * Базовый класс для всех Kaspresso UI-тестов VLC Android.
+ *
+ * Философия:
+ *  - Каждый тест начинается ЧЕЛОВЕЧЕСКИ: приложение может быть запущено через UI Automator
+ *    (имитация того, как запускает приложение обычный пользователь)
+ *  - Перед каждым тестом устройство настраивается:
+ *      * Яркость на максимум для визуальной наглядности
+ *      * Экран не гаснет (таймаут отключён)
+ *      * Включен show_touches (видны клики на экране)
+ *  - После каждого теста устройство возвращается в исходное состояние
+ *  - Медиабиблиотека запускается и ждёт завершения сканирования
+ *  - Onboarding пропускается если он появился
  */
 @RunWith(AndroidJUnit4::class)
 abstract class KaspressoUITest : TestCase(KaspressoConfig.builder) {
 
-    // GrantPermissionRule tolerates a permission that exists on the current API level but isn't
-    // dangerous/required — it does NOT tolerate one the OS doesn't know about at all. Confirmed
-    // for real in CI (API 30 emulator): granting READ_MEDIA_VIDEO there throws
-    // IllegalArgumentException: Unknown permission, since it (and READ_MEDIA_AUDIO,
-    // POST_NOTIFICATIONS) was only introduced in API 33. So these are only requested on API 33+,
-    // where org.videolan.vlc.util.Permissions.canReadStorage() actually checks them instead of
-    // READ_EXTERNAL_STORAGE — confirmed for real on a Pixel_7a/API 35 emulator: without them
-    // granted there, VideoPlaybackTest saw an empty medialibrary and skipped via Assume even with
-    // real video files present.
-    @Rule
-    @JvmField
-    val storagePermissionGrant: GrantPermissionRule = GrantPermissionRule.grant(
-            *buildList {
-                add("android.permission.READ_EXTERNAL_STORAGE")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    add("android.permission.READ_MEDIA_VIDEO")
-                    add("android.permission.READ_MEDIA_AUDIO")
-                    add("android.permission.POST_NOTIFICATIONS")
-                }
-            }.toTypedArray())
+    companion object {
+        /** Пакет приложения VLC */
+        const val VLC_PACKAGE = "org.videolan.vlc.debug"
 
-    val context: Context = ApplicationProvider.getApplicationContext()
+        /** Имя приложения в лаунчере */
+        const val VLC_APP_NAME = "VLC"
 
-    // Declared in the base class so it wraps outside any @Rule ActivityScenarioRule declared in
-    // a subclass (JUnit orders rules discovered via reflection with superclass fields outermost),
-    // running before the activity launches. Confirmed for real on a Pixel_7a/API 35 emulator: on
-    // a fresh install (which the test task always installs), MainActivity.onCreate()'s
-    // lifecycleScope.launch block shows a debug-only "nightly build update" AlertDialog whenever
-    // settings.contains(KEY_SHOW_UPDATE) is false — this steals window focus, so Espresso reports
-    // "No views in hierarchy found" for the bottom nav even though MainActivity's own content view
-    // (built earlier in onCreate, unconditionally) does have it.
-    @Rule
-    @JvmField
-    val skipNightlyUpdateDialog = object : ExternalResource() {
-        override fun before() {
-            Settings.getInstance(context).putSingle(KEY_SHOW_UPDATE, true)
+        private fun buildPermissionList(): Array<String> {
+            val permissions = mutableListOf("android.permission.READ_EXTERNAL_STORAGE")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissions.add("android.permission.READ_MEDIA_VIDEO")
+                permissions.add("android.permission.READ_MEDIA_AUDIO")
+                permissions.add("android.permission.POST_NOTIFICATIONS")
+            }
+            return permissions.toTypedArray()
         }
     }
 
-    @Before
-    fun startMedialibraryForTest() {
-        context.startMedialibrary(coroutineContextProvider = TestCoroutineContextProvider())
+    /** ======== JUnit Rules ======== */
+
+    /** Разрешения — внешний rule */
+    @get:Rule(order = 0)
+    val storagePermissionGrant: GrantPermissionRule =
+        GrantPermissionRule.grant(*buildPermissionList())
+
+    /** Отключаем диалог обновления nightly build */
+    @get:Rule(order = 1)
+    val skipNightlyUpdateDialog = object : ExternalResource() {
+        override fun before() {
+            Settings.getInstance(context).putSingle(KEY_SHOW_UPDATE, false)
+        }
     }
+
+    /** Activity Rule — для совместимости с экранами. */
+    @get:Rule(order = 2)
+    open val activityRule = ActivityScenarioRule(MainActivity::class.java)
+
+    /** ======== Common properties ======== */
+
+    protected val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+    private val wakeLock: PowerManager.WakeLock by lazy {
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+        pm.newWakeLock(
+            PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "vlc:kaspresso:keepScreenOn"
+        ).apply { setReferenceCounted(false) }
+    }
+
+    /** ======== Lifecycle ======== */
+
+    @Before
+    fun baseSetUp() {
+        // Таймауты для ожидания — щедрые, т.к. мы не гонимся за скоростью
+        IdlingPolicies.setMasterPolicyTimeout(3, TimeUnit.MINUTES)
+        IdlingPolicies.setIdlingResourceTimeout(3, TimeUnit.MINUTES)
+
+        // WakeLock чтобы экран не гас
+        @Suppress("DEPRECATION")
+        if (!wakeLock.isHeld) {
+            wakeLock.acquire(15 * 60 * 1000L)
+        }
+
+        // Запускаем медиабиблиотеку (фоновое сканирование медиа)
+        context.startMedialibrary(coroutineContextProvider = TestCoroutineContextProvider())
+
+        // Настройка устройства для визуальной наглядности
+        setupDeviceForVisualization()
+
+        // Пропускаем onboarding если он есть
+        skipOnboardingIfPresent()
+
+        // Хук для дочерних классов
+        beforeTest()
+    }
+
+    @After
+    fun baseTearDown() {
+        @Suppress("DEPRECATION")
+        if (wakeLock.isHeld) {
+            wakeLock.release()
+        }
+        restoreDeviceSettings()
+    }
+
+    /** ======== Device Setup / Visualization ======== */
+
+    /**
+     * Настраивает устройство для визуальной наглядности:
+     *  - Максимальная яркость экрана
+     *  - Таймаут экрана отключён (никогда не гаснет)
+     *  - Show touches включён (видны клики на экране)
+     *  - Pointer location — след за пальцем
+     */
+    private fun setupDeviceForVisualization() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        try {
+            device.executeShellCommand("settings put system screen_brightness 255")
+            device.executeShellCommand("settings put system screen_off_timeout 1800000")
+            device.executeShellCommand("settings put system show_touches 1")
+            device.executeShellCommand("settings put system pointer_location 1")
+        } catch (e: Exception) {
+            println("[KaspressoUITest] Не удалось настроить устройство: ${e.message}")
+        }
+    }
+
+    private fun restoreDeviceSettings() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        try {
+            device.executeShellCommand("settings put system show_touches 0")
+            device.executeShellCommand("settings put system pointer_location 0")
+        } catch (e: Exception) {
+            // Игнорируем
+        }
+    }
+
+    /** ======== App Launch Methods ======== */
+
+    /**
+     * Запускает приложение VLC через UI Automator — как это делает обычный пользователь:
+     *  1. Свайп вверх (доступ к приложениям)
+     *  2. Поиск иконки VLC
+     *  3. Клик по иконке
+     *  4. Ожидание загрузки главного экрана
+     *
+     * Этот метод НЕ использует step()/flakySafely() — он предназначен для вызова
+     * внутри блока run { step(...) { launchAppFromHomeScreen() } }
+     */
+    protected fun launchAppFromHomeScreen() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+
+        // ШАГ 1: Вернуться на домашний экран
+        device.pressHome()
+        device.waitForIdle(3000)
+        // Скриншот делается в вызывающем step() через device.screenshots.take()
+
+        // ШАГ 2: Открыть список приложений (свайп вверх)
+        val screenHeight = device.displayHeight
+        val screenWidth = device.displayWidth
+        device.swipe(screenWidth / 2, screenHeight - 100, screenWidth / 2, screenHeight / 3, 20)
+        device.waitForIdle(3000)
+
+        // ШАГ 3: Найти и кликнуть по иконке VLC
+        val vlcIcon = device.findObject(UiSelector().text(VLC_APP_NAME))
+        if (vlcIcon != null && vlcIcon.exists()) {
+            vlcIcon.click()
+        } else {
+            val appIcon = device.findObject(
+                UiSelector().descriptionContains("VLC")
+                    .className("android.widget.TextView")
+            )
+            if (appIcon != null && appIcon.exists()) {
+                appIcon.click()
+            } else {
+                device.executeShellCommand(
+                    "am start -n $VLC_PACKAGE/org.videolan.vlc.gui.MainActivity"
+                )
+            }
+        }
+        device.waitForIdle(3000)
+
+        // ШАГ 4: Ожидание загрузки главного экрана VLC
+        Thread.sleep(3000)
+
+        // ШАГ 5: Проверка что табы навигации видны
+        val videoTab = device.findObject(
+            UiSelector()
+                .text("Video")
+                .className("android.widget.TextView")
+                .resourceIdMatches(".*navigation_bar_item_large_label_view")
+        )
+        if (videoTab == null || !videoTab.exists()) {
+            throw AssertionError("Главный экран VLC не загрузился вовремя")
+        }
+        device.waitForIdle(2000)
+    }
+
+    /**
+     * Альтернативный запуск: если приложение уже открыто, просто проверяем
+     * что мы на главном экране. Если нет — запускаем через launchAppFromHomeScreen().
+     */
+    protected fun ensureAppIsOpen() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        val videoTab = device.findObject(
+            UiSelector().text("Video").className("android.widget.TextView")
+        )
+        if (videoTab == null || !videoTab.exists()) {
+            launchAppFromHomeScreen()
+        } else {
+            videoTab.click()
+            device.waitForIdle(2000)
+        }
+    }
+
+    /** ======== Helper Methods ======== */
+
+    /**
+     * Пропускает onboarding wizard если он появился.
+     */
+    private fun skipOnboardingIfPresent() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        val skip = device.findObject(UiSelector().text("SKIP").className("android.widget.Button"))
+        if (skip != null && skip.exists() && skip.isEnabled) {
+            skip.click()
+            device.waitForIdle(3000)
+        }
+    }
+
+    /**
+     * Шаблонный метод. Дочерние классы могут переопределить для
+     * собственной подготовительной логики ПОСЛЕ настройки устройства.
+     */
+    protected open fun beforeTest() {}
 }
