@@ -14,6 +14,7 @@ import androidx.test.espresso.matcher.RootMatchers.isPlatformPopup
 import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.rule.ActivityTestRule
 import org.hamcrest.Matchers.*
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.medialibrary.interfaces.media.MediaWrapper
@@ -25,6 +26,7 @@ import org.videolan.vlc.gui.DiffUtilAdapter
 import org.videolan.vlc.gui.MainActivity
 import org.videolan.vlc.gui.helpers.SelectorViewHolder
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class FileBrowserFragmentUITest : BaseUITest() {
     @Rule
     @JvmField

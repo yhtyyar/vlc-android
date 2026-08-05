@@ -31,10 +31,12 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.rule.ActivityTestRule
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.vlc.R
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class FilePickerFragmentUITest : org.videolan.vlc.BaseUITest() {
     @Rule
     @JvmField

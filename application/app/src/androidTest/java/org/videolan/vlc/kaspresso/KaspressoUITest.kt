@@ -233,6 +233,13 @@ abstract class KaspressoUITest : TestCase(KaspressoConfig.builder) {
             videoTab.click()
             device.waitForIdle(2000)
         }
+        // Every test starts with this call, and on some runs VLC's own storage-detection
+        // shows a modal "New external storage detected" dialog right as the grid becomes
+        // interactive. Espresso doesn't know about that separate dialog window, so a click
+        // aimed at a grid item underneath silently lands on/is absorbed by the dialog
+        // instead — reproduced for real: the grid stayed untouched and no player ever
+        // opened. Dismiss it here so every test starts from a clean, dialog-free screen.
+        dismissTransientDialogsIfPresent()
     }
 
     /** ======== Helper Methods ======== */
@@ -246,6 +253,35 @@ abstract class KaspressoUITest : TestCase(KaspressoConfig.builder) {
         if (skip != null && skip.exists() && skip.isEnabled) {
             skip.click()
             device.waitForIdle(3000)
+        }
+    }
+
+    /**
+     * Закрывает переходные диалоги, которые могут появиться ПОСЛЕ настоящего запуска через
+     * иконку лаунчера — Welcome-визард onboarding'а и debug-диалог "Auto update" (nightly).
+     * Нужен отдельно от [skipOnboardingIfPresent]/baseSetUp: тот вызывается один раз в
+     * @Before, сразу после запуска MainActivity через ActivityScenarioRule, который запускает
+     * Activity напрямую через Instrumentation и никогда не показывает ни один из этих
+     * диалогов. Если тест сам эмулирует "человеческий" запуск через иконку в лаунчере
+     * (см. [launchAppFromHomeScreen]), эти диалоги встречаются именно на ЭТОМ запуске — уже
+     * после того как @Before отработал, поэтому их нужно проверять повторно.
+     */
+    protected fun dismissTransientDialogsIfPresent(maxAttempts: Int = 5) {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        repeat(maxAttempts) {
+            val skip = device.findObject(UiSelector().text("SKIP").className("android.widget.Button"))
+            if (skip != null && skip.exists() && skip.isEnabled) {
+                skip.click()
+                device.waitForIdle(1500)
+                return@repeat
+            }
+            val no = device.findObject(UiSelector().text("NO").className("android.widget.Button"))
+            if (no != null && no.exists() && no.isEnabled) {
+                no.click()
+                device.waitForIdle(1500)
+                return@repeat
+            }
+            Thread.sleep(400)
         }
     }
 

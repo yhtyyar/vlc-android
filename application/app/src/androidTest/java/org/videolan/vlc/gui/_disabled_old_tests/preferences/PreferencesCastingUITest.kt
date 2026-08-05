@@ -5,6 +5,7 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.intent.rule.IntentsTestRule
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import org.hamcrest.Matchers.not
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.tools.KEY_CASTING_PASSTHROUGH
@@ -15,6 +16,7 @@ import org.videolan.vlc.PreferenceMatchers.withKey
 import org.videolan.vlc.R
 import org.videolan.vlc.onPreferenceRow
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class PreferencesCastingUITest: BasePreferenceUITest() {
     @get:Rule
     val intentsTestRule = IntentsTestRule(PreferencesActivity::class.java)

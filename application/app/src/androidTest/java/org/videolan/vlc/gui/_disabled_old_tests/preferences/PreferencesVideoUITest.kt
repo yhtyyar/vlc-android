@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.intent.rule.IntentsTestRule
 import androidx.test.filters.SdkSuppress
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.tools.ENABLE_BRIGHTNESS_GESTURE
@@ -18,6 +19,7 @@ import org.videolan.vlc.PreferenceMatchers.withKey
 import org.videolan.vlc.R
 import org.videolan.vlc.onPreferenceRow
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class PreferencesVideoUITest: BasePreferenceUITest() {
     @get:Rule
     val intentsTestRule = IntentsTestRule(PreferencesActivity::class.java)

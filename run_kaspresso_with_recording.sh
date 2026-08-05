@@ -58,9 +58,8 @@ sleep 2  # Give screenrecord time to start
 TEST_FILTER="${1:-smoke}"
 case "$TEST_FILTER" in
     smoke)
-        echo "[INFO] Running SMOKE tests only..."
-        TEST_ARG="-Pandroid.testInstrumentationRunnerArguments.package=org.videolan.vlc.kaspresso.tests"
-        TEST_ARG="$TEST_ARG -Pandroid.testInstrumentationRunnerArguments.class=SmokeTest"
+        echo "[INFO] Running smoke test only (AppLaunchTest, TC-001, BLOCKER severity)..."
+        TEST_ARG="-Pandroid.testInstrumentationRunnerArguments.class=org.videolan.vlc.kaspresso.tests.AppLaunchTest"
         ;;
     all)
         echo "[INFO] Running ALL Kaspresso tests..."

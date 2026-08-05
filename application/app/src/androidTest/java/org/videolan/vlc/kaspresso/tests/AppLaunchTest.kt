@@ -84,6 +84,12 @@ class AppLaunchTest : KaspressoUITest() {
         step("ШАГ 4: Ожидание загрузки главного экрана") {
             // Даём время на анимацию запуска — мы не торопимся
             Thread.sleep(3000)
+            // Этот запуск идёт через реальную иконку в лаунчере (StartActivity), а не через
+            // ActivityScenarioRule (который запускает MainActivity напрямую и никогда не
+            // показывает эти экраны) — поэтому именно здесь может появиться Welcome-визард
+            // онбординга или debug-диалог "Auto update". baseSetUp() их не увидит, т.к.
+            // отработал раньше, до этого запуска.
+            dismissTransientDialogsIfPresent()
             device.screenshots.take("step4_main_screen_loading")
         }
 
@@ -100,9 +106,12 @@ class AppLaunchTest : KaspressoUITest() {
             device.screenshots.take("step5_navigation_tabs_visible")
         }
 
-        step("ШАГ 6: Проверка что активен таб Video") {
-            // По умолчанию при запуске открыт таб Video
+        step("ШАГ 6: Проверка что таб Video открывается и показывает грид") {
+            // Не предполагаем, что Video — активный таб: приложение помнит последний
+            // открытый таб (KEY_FRAGMENT_ID) и восстанавливает именно его при запуске, так
+            // что дефолт на "Video" не гарантирован. Явно кликаем сами.
             MainScreen {
+                videoTab.click()
                 flakySafely { videoGridList.isVisible() }
             }
             device.screenshots.take("step6_video_tab_active")

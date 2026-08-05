@@ -12,27 +12,19 @@ what's covered, what's a known follow-up, and how the real resource IDs used her
 - `matchers/` — custom Hamcrest matchers (`VlcMatchers.kt`).
 - `utils/` — `TestMediaProvider.kt` pushes the real sample media in `assets/media/` onto the
   device for the playback tests.
-- `tests/` — the actual test classes: `SmokeTest`, `VideoPlaybackTest`, `AudioPlaybackTest`,
-  `TvNavigationTest`, `EqualizerTest`, `NetworkStreamTest`, `PerformanceTest`, `FileBrowserTest`,
-  `SearchTest`.
+- `tests/` — the actual test classes, written as manual-tester-style scripts (TC-00N) rather than
+  atomic unit-style tests: `AppLaunchTest` (TC-001), `NavigationTest` (TC-002),
+  `VideoPlaybackTest` (TC-003), `AudioPlaybackTest` (TC-004), `SearchTest` (TC-005),
+  `MoreMenuTest` (TC-006), `SettingsTest` (TC-007), `FileBrowserTest` (TC-008),
+  `NetworkStreamTest` (TC-009).
 
-## Test status (last verified: see ANALYSIS.md §9 and §11)
+## Test status
 
-Reliably passing across multiple independent runs, including after a full emulator data wipe:
-`SmokeTest` (3), `TvNavigationTest` (2), `EqualizerTest` (2), `PerformanceTest` (2) — 9 of 19.
-
-`VideoPlaybackTest`, `AudioPlaybackTest`, and `NetworkStreamTest` each had a real, confirmed bug
-found and fixed via on-device debugging (see ANALYSIS.md §9 for the exact evidence — stack traces,
-logcat correlations, and a pulled screenshot for the navigation bug); each fix was individually
-verified to resolve the specific exception it targeted. `FileBrowserTest`, `SearchTest`, and
-`VideoPlaybackTest.tappingTheFabPlaysAllVideos` (§11) compile clean and are built from real,
-freshly-researched ids, but haven't run to completion yet — every `connectedDebugAndroidTest`
-attempt against this project's shared local emulator (including with a freshly restarted Gradle
-daemon and a cold-booted emulator) has hung for the full 10-minute timeout with 0 tests completed.
-This looks like a limitation of running instrumented tests in this specific sandboxed environment,
-not the test code itself — `compileDebugAndroidTestKotlin` has never failed, and the 9 tests above
-did pass repeatedly on this same emulator image earlier in the project's history. Run the suite
-fresh (a different machine, or real CI) to get a clean runtime confirmation.
+`PerformanceTest`, `KaspressoMigrationShowcaseTest`, `TvNavigationTest`, `SmokeTest`, and
+`EqualizerTest` were removed as noisy/low-value; there is currently no dedicated Equalizer or TV
+coverage in this suite. See ANALYSIS.md §9 and §11 for the older, now partially superseded,
+per-test verification history from before that cleanup — treat it as historical context, not a
+statement of the current suite's state.
 
 ## Running locally
 

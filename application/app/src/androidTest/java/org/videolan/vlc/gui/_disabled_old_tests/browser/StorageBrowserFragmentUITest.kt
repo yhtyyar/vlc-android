@@ -15,6 +15,7 @@ import org.hamcrest.Description
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.*
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.vlc.BaseUITest
@@ -23,6 +24,7 @@ import org.videolan.vlc.gui.SecondaryActivity
 import org.videolan.vlc.*
 import org.videolan.vlc.gui.helpers.ThreeStatesCheckbox
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class StorageBrowserFragmentUITest : BaseUITest() {
     @Rule
     @JvmField

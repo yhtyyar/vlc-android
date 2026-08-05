@@ -2,6 +2,7 @@ package org.videolan.vlc.gui.preferences
 
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.intent.rule.IntentsTestRule
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.tools.KEY_SUBTITLES_AUTOLOAD
@@ -13,6 +14,7 @@ import org.videolan.vlc.PreferenceMatchers.withKey
 import org.videolan.vlc.R
 import org.videolan.vlc.onPreferenceRow
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class PreferencesSubtitlesUITest: BasePreferenceUITest() {
     @get:Rule
     val intentsTestRule = IntentsTestRule(PreferencesActivity::class.java)

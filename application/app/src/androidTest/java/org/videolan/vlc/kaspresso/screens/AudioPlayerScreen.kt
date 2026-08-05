@@ -26,8 +26,19 @@ object AudioPlayerScreen : KScreen<AudioPlayerScreen>() {
     val repeatButton = KImageView { withId(R.id.repeat) }
 
     // ======== Track Info ========
-    val trackTitle = KTextView { withId(R.id.title) }
-    val artist = KTextView { withId(R.id.artist) }
+    // R.id.title/artist also exist in every audio-list row and in the offscreen
+    // prev/next pages of the media switcher, so they must be scoped to the switcher's
+    // currently *displayed* page to resolve to a single view.
+    val trackTitle = KTextView {
+        withId(R.id.title)
+        isDescendantOfA { withId(R.id.audio_media_switcher) }
+        isDisplayed()
+    }
+    val artist = KTextView {
+        withId(R.id.artist)
+        isDescendantOfA { withId(R.id.audio_media_switcher) }
+        isDisplayed()
+    }
     val coverArt = KImageView { withId(R.id.cover) }
 
     // ======== Progress ========

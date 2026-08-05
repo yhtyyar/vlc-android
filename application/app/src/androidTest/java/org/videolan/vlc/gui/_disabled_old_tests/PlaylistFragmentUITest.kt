@@ -24,6 +24,7 @@ import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.instanceOf
 import org.hamcrest.Matchers.notNullValue
 import org.junit.After
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.medialibrary.interfaces.Medialibrary
@@ -38,6 +39,7 @@ import org.videolan.vlc.util.TestCoroutineContextProvider
 import org.videolan.vlc.withCount
 import org.videolan.vlc.withRecyclerView
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class PlaylistFragmentUITest: BaseUITest() {
     @Rule
     @JvmField

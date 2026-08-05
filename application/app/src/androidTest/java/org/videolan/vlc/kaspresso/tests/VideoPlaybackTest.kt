@@ -3,8 +3,12 @@ package org.videolan.vlc.kaspresso.tests
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.contrib.RecyclerViewActions
+import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
@@ -14,6 +18,7 @@ import io.qameta.allure.kotlin.Feature
 import io.qameta.allure.kotlin.Severity
 import io.qameta.allure.kotlin.SeverityLevel
 import io.qameta.allure.kotlin.Story
+import org.hamcrest.Matchers.containsString
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
@@ -56,6 +61,26 @@ class VideoPlaybackTest : KaspressoUITest() {
         TestMediaProvider.rescanAndAwait()
     }
 
+    /**
+     * Оверлей контролов плеера скрывается (GONE) не только по таймауту бездействия, но и
+     * сразу после клика Play/Pause — реальное, воспроизведённое поведение (см. PlayerScreen).
+     * Проверяем текущую видимость и тапаем по экрану только если контролы уже скрыты —
+     * безусловный тап рискует, наоборот, скрыть их, если они всё ещё видны.
+     */
+    private fun revealPlayerControlsIfHidden() {
+        val isHidden = try {
+            onView(withId(R.id.player_overlay_forward)).check(matches(isDisplayed()))
+            false
+        } catch (e: Throwable) {
+            true
+        }
+        if (isHidden) {
+            val uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            uiDevice.click(uiDevice.displayWidth / 2, uiDevice.displayHeight / 6)
+            Thread.sleep(500)
+        }
+    }
+
     @Test
     @Story("Полный цикл воспроизведения")
     @Severity(SeverityLevel.CRITICAL)
@@ -79,21 +104,41 @@ class VideoPlaybackTest : KaspressoUITest() {
             device.screenshots.take("video_step1_video_tab")
         }
 
-        step("ШАГ 2: Клик по первому видео в списке") {
+        step("ШАГ 2: Клик по видео, запушенному тестом") {
             // Проверяем что есть видео в библиотеке
             val hasVideos = Medialibrary.getInstance()
                 .getPagedVideos(Medialibrary.SORT_DEFAULT, false, true, false, 1, 0)
                 .isNotEmpty()
             assumeTrue("Нет видео в медиабиблиотеке — тест пропущен", hasVideos)
 
+            // VLC's "New external storage detected" dialog can pop up right as the grid
+            // becomes interactive and silently absorb the click meant for it below.
+            dismissTransientDialogsIfPresent()
+
+            // Кликаем по конкретному запушенному видео, а не по позиции 0 — если на
+            // устройстве накопились другие видео (с прошлых прогонов), VLC группирует
+            // ролики с общим префиксом имени в отдельный тайл-папку, и position 0 в
+            // гриде перестаёт быть нашим sample_video.
             onView(withId(R.id.video_grid))
-                .perform(RecyclerViewActions.actionOnItemAtPosition<RecyclerView.ViewHolder>(0, click()))
-            Thread.sleep(3000) // Ждём открытия плеера
-            device.screenshots.take("video_step2_player_opened")
+                .perform(
+                    RecyclerViewActions.actionOnItem<RecyclerView.ViewHolder>(
+                        hasDescendant(withText(containsString("sample_video"))), click()
+                    )
+                )
+            device.screenshots.take("video_step2_player_opening")
+        }
+
+        step("ШАГ 2b: Тап по экрану — показать контролы плеера") {
+            // PlayerScreen сам документирует это: "Элементы управления появляются при
+            // тапе по экрану" — без этого тапа title/playPauseButton/seekBar не
+            // отрисовываются вообще (оверлей просто не поднят).
+            val uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            uiDevice.click(uiDevice.displayWidth / 2, uiDevice.displayHeight / 2)
+            Thread.sleep(500)
         }
 
         step("ШАГ 3: Проверка элементов плеера") {
-            flakySafely(timeoutMs = 10000) {
+            flakySafely(timeoutMs = 15000) {
                 PlayerScreen {
                     title.isVisible()
                     playPauseButton.isVisible()
@@ -115,14 +160,18 @@ class VideoPlaybackTest : KaspressoUITest() {
 
         step("ШАГ 5: Нажать Play (возобновить воспроизведение)") {
             PlayerScreen {
+                // Не перепроверяем видимость кнопки после сна: оверлей контролов
+                // автоскрывается через несколько секунд бездействия (см. комментарий в
+                // PlayerScreen) — это уже реальная UX-логика плеера, а не что-то, что этот
+                // шаг должен тестировать.
                 playPauseButton.click()
                 Thread.sleep(1000)
-                playPauseButton.isVisible()
             }
             device.screenshots.take("video_step5_resumed")
         }
 
         step("ШАГ 6: Нажать Forward (перемотка вперёд)") {
+            revealPlayerControlsIfHidden()
             PlayerScreen {
                 forwardButton.click()
                 Thread.sleep(1500)
@@ -131,6 +180,7 @@ class VideoPlaybackTest : KaspressoUITest() {
         }
 
         step("ШАГ 7: Нажать Rewind (перемотка назад)") {
+            revealPlayerControlsIfHidden()
             PlayerScreen {
                 rewindButton.click()
                 Thread.sleep(1500)

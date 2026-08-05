@@ -73,6 +73,10 @@ class NetworkStreamTest : KaspressoUITest() {
 
         step("ШАГ 4: Ввести тестовый URL") {
             NetworkStreamScreen {
+                // Поле может быть не пустым к этому моменту (замечено на реальном
+                // прогоне: автозаполнение подставило URL из истории потоков), а
+                // typeText() дописывает к уже введённому тексту, а не заменяет его.
+                urlInputLayout.edit.clearText()
                 urlInputLayout.edit.typeText("rtsp://test.example/stream")
                 Thread.sleep(500)
                 urlInputLayout.edit.hasText("rtsp://test.example/stream")
@@ -89,6 +93,10 @@ class NetworkStreamTest : KaspressoUITest() {
         }
 
         step("ШАГ 6: Нажать Back — вернуться к меню More") {
+            // The url field still holds IME focus after ШАГ 4/5 — the first Back only
+            // dismisses the keyboard on a real device/emulator, it doesn't yet close the
+            // Streams screen. Close the IME explicitly so this Back is the one that does.
+            androidx.test.espresso.Espresso.closeSoftKeyboard()
             androidx.test.espresso.Espresso.pressBack()
             Thread.sleep(1500)
             MoreScreen {

@@ -9,6 +9,7 @@ import androidx.test.espresso.intent.matcher.IntentMatchers.hasExtra
 import androidx.test.espresso.intent.rule.IntentsTestRule
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import org.hamcrest.Matchers.allOf
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.videolan.tools.KEY_HARDWARE_ACCELERATION
@@ -21,6 +22,7 @@ import org.videolan.tools.KEY_VIDEO_APP_SWITCH
 import org.videolan.tools.PLAYBACK_HISTORY
 import org.videolan.tools.SCREEN_ORIENTATION
 
+@Ignore("Superseded by the Kaspresso suite (org.videolan.vlc.kaspresso); kept as reference only")
 class PreferencesFragmentUITest: BasePreferenceUITest() {
     @get:Rule
     val intentsTestRule = IntentsTestRule(PreferencesActivity::class.java)
