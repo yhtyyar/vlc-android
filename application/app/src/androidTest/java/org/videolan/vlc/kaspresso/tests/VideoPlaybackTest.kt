@@ -22,6 +22,7 @@ import org.junit.Test
 import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.tools.ENABLE_SEEK_BUTTONS
 import org.videolan.tools.Settings
+import org.videolan.tools.VIDEO_HUD_TIMEOUT
 import org.videolan.tools.putSingle
 import org.videolan.vlc.R
 import org.videolan.vlc.kaspresso.KaspressoUITest
@@ -59,14 +60,20 @@ class VideoPlaybackTest : KaspressoUITest() {
     fun pushSampleVideo() {
         TestMediaProvider.pushVideo()
         TestMediaProvider.rescanAndAwait()
-        // Настоящая причина, по которой forward/rewind были не найдены (проверено дампом
-        // UI-дерева в момент падения: title/play-pause/seekbar/tracks все на месте и видимы,
-        // а player_overlay_forward/player_overlay_rewind в дереве попросту отсутствуют) — эти
-        // кнопки управляются отдельным preference'ом ENABLE_SEEK_BUTTONS, который по умолчанию
-        // false (VideoPlayerOverlayDelegate.kt: "getBoolean(ENABLE_SEEK_BUTTONS, false)"). Это
-        // не про видимость оверлея и не про тайминг — кнопки просто не рендерятся, пока не
-        // включена соответствующая настройка. Включаем её на время теста.
+        // Причина №1, по которой forward/rewind были не найдены (проверено дампом UI-дерева:
+        // title/play-pause/seekbar/tracks на месте и видимы, а player_overlay_forward/rewind в
+        // дереве попросту отсутствуют) — эти кнопки управляются отдельным preference'ом
+        // ENABLE_SEEK_BUTTONS, который по умолчанию false. Включаем на время теста.
         Settings.getInstance(context).putSingle(ENABLE_SEEK_BUTTONS, true)
+        // Причина №2 (проявилась отдельно, уже когда кнопки стали существовать): оверлей
+        // контролов автоскрывается через Settings.videoHudDelay секунд (по умолчанию 2-4)
+        // бездействия — на реальном прогоне кнопка была найдена, но visibility=INVISIBLE
+        // (оверлей успел спрятаться до клика). videoHudDelay == -1 отключает автоскрытие
+        // (маппится в OVERLAY_INFINITE). Settings — ленивый синглтон, его init() из prefs
+        // отрабатывает только раз за процесс, ещё до этого @Before — меняем и prefs, и
+        // закэшированное in-memory поле напрямую.
+        Settings.getInstance(context).putSingle(VIDEO_HUD_TIMEOUT, -1)
+        Settings.videoHudDelay = -1
     }
 
     @Test
