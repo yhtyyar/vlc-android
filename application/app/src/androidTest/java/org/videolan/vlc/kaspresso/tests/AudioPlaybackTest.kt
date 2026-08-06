@@ -1,12 +1,9 @@
 package org.videolan.vlc.kaspresso.tests
 
-import androidx.recyclerview.widget.RecyclerView
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.contrib.RecyclerViewActions
-import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
-import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
@@ -17,11 +14,11 @@ import io.qameta.allure.kotlin.Severity
 import io.qameta.allure.kotlin.SeverityLevel
 import io.qameta.allure.kotlin.Story
 import org.hamcrest.Matchers.allOf
+import org.hamcrest.Matchers.startsWith
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.videolan.medialibrary.interfaces.Medialibrary
-import org.videolan.vlc.R
 import org.videolan.vlc.kaspresso.KaspressoUITest
 import org.videolan.vlc.kaspresso.screens.AudioPlayerScreen
 import org.videolan.vlc.kaspresso.screens.MainScreen
@@ -104,17 +101,15 @@ class AudioPlaybackTest : KaspressoUITest() {
             // список аудио показывает имя файла целиком, с расширением ("sample_audio.mp3"),
             // и точное совпадение обязательно — "sample_audio_2.mp3" тоже содержит
             // "sample_audio" как подстроку.
-            // RecyclerViewActions — это чистый Espresso, а не Kakao/KView, так что Kaspresso
-            // не оборачивает его в flakySafely автоматически: без ретрая тут ловили пустой,
-            // ещё не забинденный адаптер сразу после переключения на TRACKS.
-            flakySafely(timeoutMs = 10000) {
-                onView(allOf(withId(R.id.audio_list), isDisplayed()))
-                    .perform(
-                        RecyclerViewActions.actionOnItem<RecyclerView.ViewHolder>(
-                            hasDescendant(withText("sample_audio.mp3")), click()
-                        )
-                    )
-            }
+            // RecyclerViewActions.actionOnItem(hasDescendant(...), click()) стабильно не
+            // находил элемент здесь (проверено дампом UI-дерева: структура и текст на месте,
+            // "Found 0 items matching" тем не менее) — но хотя бы падал быстро и чисто.
+            // onView(withText(...)).perform(click()) на этом экране ЗАВИСАЛ насмерть
+            // (воспроизведено дважды — реальный hang, не медленный прогон). Кликаем по
+            // content-desc самой строки (у неё он богатый и уникальный: "Audio track:
+            // sample_audio.mp3, Duration: ...") — это clickable-родитель напрямую, без
+            // hasDescendant-траверса и без сценария, вызвавшего зависание.
+            onView(withContentDescription(startsWith("Audio track: sample_audio.mp3,"))).perform(click())
             device.screenshots.take("audio_step2_player_opening")
         }
 

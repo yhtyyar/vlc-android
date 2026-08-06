@@ -3,15 +3,12 @@ package org.videolan.vlc.kaspresso.tests
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.contrib.RecyclerViewActions
 import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiSelector
 import io.qameta.allure.kotlin.Description
 import io.qameta.allure.kotlin.Epic
 import io.qameta.allure.kotlin.Feature
@@ -23,6 +20,9 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.videolan.medialibrary.interfaces.Medialibrary
+import org.videolan.tools.ENABLE_SEEK_BUTTONS
+import org.videolan.tools.Settings
+import org.videolan.tools.putSingle
 import org.videolan.vlc.R
 import org.videolan.vlc.kaspresso.KaspressoUITest
 import org.videolan.vlc.kaspresso.screens.MainScreen
@@ -59,26 +59,14 @@ class VideoPlaybackTest : KaspressoUITest() {
     fun pushSampleVideo() {
         TestMediaProvider.pushVideo()
         TestMediaProvider.rescanAndAwait()
-    }
-
-    /**
-     * Оверлей контролов плеера скрывается (GONE) не только по таймауту бездействия, но и
-     * сразу после клика Play/Pause — реальное, воспроизведённое поведение (см. PlayerScreen).
-     * Проверяем текущую видимость и тапаем по экрану только если контролы уже скрыты —
-     * безусловный тап рискует, наоборот, скрыть их, если они всё ещё видны.
-     */
-    private fun revealPlayerControlsIfHidden() {
-        val isHidden = try {
-            onView(withId(R.id.player_overlay_forward)).check(matches(isDisplayed()))
-            false
-        } catch (e: Throwable) {
-            true
-        }
-        if (isHidden) {
-            val uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-            uiDevice.click(uiDevice.displayWidth / 2, uiDevice.displayHeight / 6)
-            Thread.sleep(500)
-        }
+        // Настоящая причина, по которой forward/rewind были не найдены (проверено дампом
+        // UI-дерева в момент падения: title/play-pause/seekbar/tracks все на месте и видимы,
+        // а player_overlay_forward/player_overlay_rewind в дереве попросту отсутствуют) — эти
+        // кнопки управляются отдельным preference'ом ENABLE_SEEK_BUTTONS, который по умолчанию
+        // false (VideoPlayerOverlayDelegate.kt: "getBoolean(ENABLE_SEEK_BUTTONS, false)"). Это
+        // не про видимость оверлея и не про тайминг — кнопки просто не рендерятся, пока не
+        // включена соответствующая настройка. Включаем её на время теста.
+        Settings.getInstance(context).putSingle(ENABLE_SEEK_BUTTONS, true)
     }
 
     @Test
@@ -171,7 +159,6 @@ class VideoPlaybackTest : KaspressoUITest() {
         }
 
         step("ШАГ 6: Нажать Forward (перемотка вперёд)") {
-            revealPlayerControlsIfHidden()
             PlayerScreen {
                 forwardButton.click()
                 Thread.sleep(1500)
@@ -180,7 +167,6 @@ class VideoPlaybackTest : KaspressoUITest() {
         }
 
         step("ШАГ 7: Нажать Rewind (перемотка назад)") {
-            revealPlayerControlsIfHidden()
             PlayerScreen {
                 rewindButton.click()
                 Thread.sleep(1500)
