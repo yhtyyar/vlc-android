@@ -100,11 +100,20 @@ class VideoPlaybackTest : KaspressoUITest() {
         }
 
         step("ШАГ 2: Клик по видео, запушенному тестом") {
-            // Проверяем что есть видео в библиотеке
-            val hasVideos = Medialibrary.getInstance()
-                .getPagedVideos(Medialibrary.SORT_DEFAULT, false, true, false, 1, 0)
-                .isNotEmpty()
-            assumeTrue("Нет видео в медиабиблиотеке — тест пропущен", hasVideos)
+            // Проверяем не просто "есть хоть какое-то видео", а что именно НАШ sample_video
+            // проиндексирован. На CI весь пакет org.videolan.vlc.kaspresso гоняется одной
+            // инструментацией (см. workflow) без переустановки между классами — "любое видео
+            // есть" не гарантирует, что sample_video из ЭТОГО @Before уже виден медиатеке.
+            // Один retry рескана на случай, если индексация ещё не успела — и честный skip
+            // вместо жёсткого падения, если так и не появился.
+            fun hasSampleVideoIndexed() = Medialibrary.getInstance()
+                .getPagedVideos(Medialibrary.SORT_DEFAULT, false, true, false, 100, 0)
+                .any { it.title.contains("sample_video") }
+
+            if (!hasSampleVideoIndexed()) {
+                TestMediaProvider.rescanAndAwait()
+            }
+            assumeTrue("sample_video не найден в медиабиблиотеке — тест пропущен", hasSampleVideoIndexed())
 
             // VLC's "New external storage detected" dialog can pop up right as the grid
             // becomes interactive and silently absorb the click meant for it below.
